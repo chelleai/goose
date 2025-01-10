@@ -1,0 +1,52 @@
+[tool.poetry]
+name = "vers"
+version = "0.0.0"
+description = "A tool for YAML-based configuration of AI flows with multiple prompts producing structured outputs."
+authors = [
+    "Nash Taylor <nash@chelle.ai>",
+    "Joshua Cook <joshua@chelle.ai>",
+    "Michael Sankur <michael@chelle.ai>"
+]
+readme = "README.md"
+homepage = "https://github.com/chelle-ai/vers"
+repository = "https://github.com/chelle-ai/vers"
+documentation = "https://github.com/chelle-ai/vers"
+keywords = ["ai", "yaml", "configuration", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+packages = [
+    { include = "vers" }
+]
+
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+jsonpath-ng = "^1.7.0"
+litellm = "^1.56.5"
+redis = "^5.2.1"
+pydantic = "^2.8.2"
+ipykernel = { version = "*", optional = true }
+pytest = { version = "<8", optional = true }
+pytest-mock = { version = "*", optional = true }
+pytest-asyncio = { version = "*", optional = true }
+
+
+[tool.poetry.extras]
+test = ["ipykernel", "pytest", "pytest-mock", "pytest-asyncio"]
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "pep440"
+pattern = "^v?(?P<base>\\d+\\.\\d+\\.\\d+)$"  # Matches tags like v0.1.0 or 0.1.0
