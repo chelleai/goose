@@ -54,3 +54,10 @@ reportImportCycles = true
 reportUnknownMemberType = false
 reportUnknownVariableType = false
 stubPath = ".stubs"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::SyntaxWarning",
+    "ignore::UserWarning",
+]

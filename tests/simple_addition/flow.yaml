@@ -1,0 +1,18 @@
+flows:
+  - name: simple_addition
+    inputs:
+      - name: num1
+        type: text
+        description: The first number to add
+      - name: num2
+        type: text
+        description: The second number to add
+    tasks:
+      - name: add_numbers
+        arguments:
+          - parameter: num1
+            source_type: input
+            source: num1
+          - parameter: num2
+            source_type: input
+            source: num2

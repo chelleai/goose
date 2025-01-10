@@ -1,0 +1,14 @@
+tasks:
+  - name: add_numbers
+    model: gemini/gemini-1.5-flash
+    response_model_name: AdditionResult
+    parameters:
+      - name: num1
+        type: text
+        description: The first number to add
+      - name: num2
+        type: text
+        description: The second number to add
+    messages:
+      - role: user
+        content: Add the numbers $num1 and $num2
