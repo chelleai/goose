@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vers"
-version = "0.0.0"
+version = "0.0.1"
 description = "A tool for YAML-based configuration of AI flows with multiple prompts producing structured outputs."
 authors = [
     "Nash Taylor <nash@chelle.ai>",
