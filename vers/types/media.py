@@ -1,9 +1,6 @@
 from enum import StrEnum
-from typing import NewType
 
 from pydantic import BaseModel
-
-EncodedMediaMessage = NewType("EncodedMediaMessage", str)
 
 
 class SupportedMimeType(StrEnum):

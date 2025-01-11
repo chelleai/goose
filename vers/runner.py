@@ -1,11 +1,12 @@
-import json
 import logging
+import json
 import os
 from datetime import datetime
 
 from litellm import acompletion
 from pydantic import BaseModel, computed_field
 
+from vers.errors import VersError
 from vers.types.llm import GeminiModel, LLMMessage
 from vers.types.tasks import UnstructuredTaskOutput
 
@@ -55,7 +56,7 @@ class TaskRunner:
         self.run_id = run_id
         self.map_index = map_index
         self.disable_tracing = disable_tracing
-        self.logger = logging.getLogger("vers.runner")
+        self.logger = logging.getLogger("vers-runner")
 
     async def create(
         self, *, messages: list[LLMMessage], model: GeminiModel, task_name: str
@@ -64,7 +65,9 @@ class TaskRunner:
 
         response = await acompletion(model=model.value, messages=messages)
         if len(response.choices) == 0:
-            raise ValueError("No content returned from LLM call.")
+            raise VersError(
+                error_type="LLM_ERROR", message="No content returned from LLM call."
+            )
         response_content = response.choices[0].message.content
 
         if not self.disable_tracing:
@@ -106,7 +109,9 @@ class TaskRunner:
         )
 
         if len(response.choices) == 0:
-            raise ValueError("No content returned from LLM call.")
+            raise VersError(
+                error_type="LLM_ERROR", message="No content returned from LLM call."
+            )
         parsed_response = response_model.model_validate_json(
             response.choices[0].message.content
         )

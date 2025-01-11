@@ -1,6 +1,7 @@
 import base64
 from typing import Literal
 
+from vers.errors import VersError
 from vers.runner import TaskRunner
 from vers.types.llm import (
     GeminiModel,
@@ -38,7 +39,10 @@ class Task[ResponseModelT: TaskOutput]:
     @property
     def outputs(self) -> dict[str | None, ResponseModelT]:
         if len(self._outputs) == 0:
-            raise ValueError(f"Task {self.name} has not been run or uses mapped output")
+            raise VersError(
+                error_type="LLM_ERROR",
+                message=f"Task {self.name} has not been run or uses mapped output",
+            )
         return self._outputs
 
     @property

@@ -3,11 +3,12 @@ import json
 import re
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Awaitable
+from typing import Awaitable, Literal, overload
 
 import yaml
 from jsonpath_ng import parse
 
+from vers.errors import VersError
 from vers.task import Task
 from vers.types.flows import (
     FlowInputSpec,
@@ -17,7 +18,7 @@ from vers.types.flows import (
     SourceType,
 )
 from vers.types.media import MediaMessage
-from vers.types.tasks import TaskOutput, TaskSpec, TasksSpec
+from vers.types.tasks import TaskOutput, TaskSpec, TasksSpec, UnstructuredTaskOutput
 
 
 class Flow:
@@ -71,7 +72,10 @@ class Flow:
             (flow_spec for flow_spec in flow_specs if flow_spec.name == name), None
         )
         if flow_spec is None:
-            raise ValueError(f"Flow {name} not found in {flows_spec_path}")
+            raise VersError(
+                error_type="VALIDATION_ERROR",
+                message=f"Flow {name} not found in {flows_spec_path}",
+            )
 
         task_specs_by_name = {
             task_spec.name: task_spec
@@ -81,8 +85,9 @@ class Flow:
         for flow_task_spec in flow_spec.tasks:
             task_spec = task_specs_by_name.get(flow_task_spec.name)
             if task_spec is None:
-                raise ValueError(
-                    f"Task {flow_task_spec.name} not found in {tasks_spec_path}"
+                raise VersError(
+                    error_type="VALIDATION_ERROR",
+                    message=f"Task {flow_task_spec.name} not found in {tasks_spec_path}",
                 )
 
             task_specs_in_flow.append(task_spec)
@@ -115,8 +120,9 @@ class Flow:
                     None,
                 )
                 if flow_task_spec is None:
-                    raise ValueError(
-                        f"Task {task_name} is not a valid task for this flow"
+                    raise VersError(
+                        error_type="VALIDATION_ERROR",
+                        message=f"Task {task_name} is not a valid task for this flow",
                     )
 
                 task_executions.append(
@@ -131,30 +137,79 @@ class Flow:
 
             await asyncio.gather(*task_executions)
 
+    @overload
     def get[ResponseModelT: TaskOutput](
         self,
         task_name: str,
         /,
         *,
-        response_model: type[ResponseModelT],
+        response_model: type[ResponseModelT] = UnstructuredTaskOutput,
         key: str | None = None,
-    ) -> ResponseModelT:
+        optional: Literal[True],
+    ) -> ResponseModelT | None: ...
+    @overload
+    def get[ResponseModelT: TaskOutput](
+        self,
+        task_name: str,
+        /,
+        *,
+        response_model: type[ResponseModelT] = UnstructuredTaskOutput,
+        key: str | None = None,
+        optional: Literal[False],
+    ) -> ResponseModelT: ...
+    @overload
+    def get[ResponseModelT: TaskOutput](
+        self,
+        task_name: str,
+        /,
+        *,
+        response_model: type[ResponseModelT] = UnstructuredTaskOutput,
+        key: str | None = None,
+    ) -> ResponseModelT: ...
+
+    def get[ResponseModelT: TaskOutput](
+        self,
+        task_name: str,
+        /,
+        *,
+        response_model: type[ResponseModelT] = UnstructuredTaskOutput,
+        key: str | None = None,
+        optional: bool = False,
+    ) -> ResponseModelT | None:
         task = self.tasks.get(task_name)
+
         if task is None:
-            raise ValueError(f"Task {task_name} is not a valid task for this flow")
+            raise VersError(
+                error_type="VALIDATION_ERROR",
+                message=f"Task {task_name} is not a valid task for this flow",
+            )
+
+        if task.skipped:
+            if optional:
+                return
+            else:
+                raise VersError(
+                    error_type="VALIDATION_ERROR",
+                    message=f"Task {task_name} was skipped and not optional",
+                )
 
         if key is None and len(task.outputs) > 1:
-            raise ValueError(
-                f"Task {task_name} has multiple outputs but no key was provided"
+            raise VersError(
+                error_type="VALIDATION_ERROR",
+                message=f"Task {task_name} has multiple outputs but no key was provided",
             )
 
         keyed_output = task.outputs.get(key)
         if keyed_output is None:
-            raise ValueError(f"Task {task_name} does not have an output with key {key}")
+            raise VersError(
+                error_type="VALIDATION_ERROR",
+                message=f"Task {task_name} does not have an output with key {key}",
+            )
 
         if not isinstance(keyed_output, response_model):
-            raise ValueError(
-                f"Task {task_name} output with key {key} is not of type {response_model}"
+            raise VersError(
+                error_type="VALIDATION_ERROR",
+                message=f"Task {task_name} output with key {key} is not of type {response_model}",
             )
 
         return keyed_output
@@ -169,8 +224,9 @@ class Flow:
                         task_spec.response_model_name
                     )
                     if response_model is None:
-                        raise ValueError(
-                            f"Response model {task_spec.response_model_name} not found"
+                        raise VersError(
+                            error_type="VALIDATION_ERROR",
+                            message=f"Response model {task_spec.response_model_name} not found",
                         )
 
                     tasks[task_spec.name] = Task(
@@ -251,8 +307,10 @@ class Flow:
             )
 
         for condition in flow_task_spec.conditions or []:
-            match_value: Any = parse(condition.match_path).find(
-                task_arguments[condition.parameter]
+            match_value = (
+                parse(condition.match_path)
+                .find(task_arguments[condition.parameter])[0]
+                .value
             )
             if not re.match(condition.match, str(match_value)):
                 task.skipped = True
@@ -267,7 +325,10 @@ class Flow:
         for mapped_argument in mapped_arguments:
             task_argument = task_arguments[mapped_argument.parameter]
             if not isinstance(task_argument, list):
-                raise ValueError("Cannot map non-iterable argument")
+                raise VersError(
+                    error_type="VALIDATION_ERROR",
+                    message="Cannot map non-iterable argument",
+                )
 
             for value in task_argument:
                 argument_set: dict[str, str | MediaMessage] = {}
@@ -275,7 +336,10 @@ class Flow:
                     if parameter == mapped_argument.parameter:
                         argument_set[parameter] = value
                     elif isinstance(current_argument, list):
-                        raise ValueError("Only one mapped argument is supported")
+                        raise VersError(
+                            error_type="VALIDATION_ERROR",
+                            message="Only one mapped argument is supported",
+                        )
                     else:
                         argument_set[parameter] = current_argument
 
@@ -315,14 +379,16 @@ class Flow:
         if source_type == "input":
             value = flow_argument_values.get(source)
             if value is None:
-                raise ValueError(
-                    f"Task requires argument {parameter} but was not provided to Flow"
+                raise VersError(
+                    error_type="VALIDATION_ERROR",
+                    message=f"Task requires argument {parameter} but was not provided to Flow",
                 )
         else:
             task = self.tasks.get(source)
             if task is None:
-                raise ValueError(
-                    f"Task has source {source} but that task does not exist in this flow"
+                raise VersError(
+                    error_type="VALIDATION_ERROR",
+                    message=f"Task has source {source} but that task does not exist in this flow",
                 )
             if len(task.outputs) > 1:
                 if path is not None:
@@ -343,8 +409,9 @@ class Flow:
                     parsed = [task.output.model_dump()]
 
             if len(parsed) == 0:
-                raise ValueError(
-                    f"Argument {parameter} could not be parsed from task result using path {path}"
+                raise VersError(
+                    error_type="VALIDATION_ERROR",
+                    message=f"Argument {parameter} could not be parsed from task result using path {path}",
                 )
             elif len(parsed) == 1:
                 value = json.dumps(parsed[0])
