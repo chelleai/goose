@@ -424,3 +424,33 @@ class Flow:
                 value = json.loads(value)
 
         return value
+    
+
+    async def cleanup(self) -> None:
+        """Clean up any resources used by the Flow instance."""
+        # Clear any cached tasks and their outputs
+        if self._tasks is not None:
+            # for task in self._tasks.values():
+            #     task._outputs.clear()
+            self._tasks.clear()
+            self._tasks = None
+
+        # Clear cached properties if any exist
+        if hasattr(self, 'task_execution_order'):
+            del self.task_execution_order
+
+        # Clear the class-level caches if needed
+        self.LOADED_FLOWS_SPECS.clear()
+        self.LOADED_TASKS_SPECS.clear()
+
+        # Explicitly close any event loops created by litellm
+        # This helps prevent the "Event loop is closed" error
+        import asyncio
+        try:
+            
+            loop = asyncio.get_running_loop()
+            if loop.is_closed():
+                asyncio.set_event_loop(asyncio.new_event_loop())
+        except RuntimeError:
+            # If no loop is running, create a new one
+            asyncio.set_event_loop(asyncio.new_event_loop())

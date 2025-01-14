@@ -1,0 +1,12 @@
+flows:
+  - name: define_word_flow
+    inputs:
+      - name: word_to_define
+        type: text
+        description: The word to define
+    tasks:
+      - name: define_word_task
+        arguments:
+          - parameter: word_to_define
+            source_type: input
+            source: word_to_define
