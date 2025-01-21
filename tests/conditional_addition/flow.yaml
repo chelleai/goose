@@ -21,17 +21,17 @@ flows:
             source: num2
       - name: second_simple_addition_task
         if:
-          - parameter: sum1
+          - parameter: num1
             match_path: $.result
             match: "3"
         arguments:
-          - parameter: sum1
+          - parameter: num1
             source_type: task
             source: first_simple_addition_task
-          - parameter: num3
+          - parameter: num2
             source_type: input
             source: num3
-  # - name: conditional_addition_flow_reuse
+  # - name: conditional_addition_flow_recursive
   #   inputs:
   #     - name: num1
   #       type: text

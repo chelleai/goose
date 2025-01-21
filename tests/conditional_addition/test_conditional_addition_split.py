@@ -31,18 +31,3 @@ async def test_conditional_addition_flow_split() -> None:
     assert first_task_output.result == "3"
     assert second_task_output.result == "6"
 
-# @pytest.mark.asyncio
-# async def test_conditional_addition_flow_reuse() -> None:
-#     flow = Flow.load(
-#         name="conditional_addition_flow_reuse",
-#         response_models=[SimpleAdditionResult],
-#         flows_spec_path=Path("tests/conditional_addition/flow.yaml"),
-#         tasks_spec_path=Path("tests/conditional_addition/tasks.yaml"),
-#     )
-#     await flow.run(run_id="conditional_addition_flow_reuse", num1="1", num2="2", num3="3")
-#     first_task_output = flow.get("simple_addition_task", response_model=SimpleAdditionResult)
-#     second_task_output = flow.get("simple_addition_task", response_model=SimpleAdditionResult)
-
-#     assert first_task_output.result == "3"
-#     assert second_task_output.result == "6"
-
