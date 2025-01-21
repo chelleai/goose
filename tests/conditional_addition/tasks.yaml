@@ -1,0 +1,42 @@
+tasks:
+  - name: first_simple_addition_task
+    model: gemini/gemini-1.5-flash
+    response_model_name: FirstAdditionResult
+    parameters:
+      - name: num1
+        type: text
+        description: The first number to add
+      - name: num2
+        type: text
+        description: The second number to add
+    messages:
+      - role: user
+        content: Add the numbers $num1 and $num2
+  - name: second_simple_addition_task
+    model: gemini/gemini-1.5-flash
+    response_model_name: SecondAdditionResult
+    parameters:
+      - name: sum1
+        type: text
+        description: The first number to add
+      - name: num3
+        type: text
+        description: The second number to add
+    messages:
+      - role: user
+        content: Add the numbers $sum1 and $num3
+  - name: simple_addition_task
+    model: gemini/gemini-1.5-flash
+    response_model_name: SimpleAdditionResult
+    parameters:
+      - name: num1
+        type: text
+        description: The first number to add
+      - name: num2
+        type: text
+        description: The second number to add
+    messages:
+      - role: user
+        content: Add the numbers $num1 and $num2
+
+

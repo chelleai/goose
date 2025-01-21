@@ -1,7 +1,7 @@
 tasks:
-  - name: add_numbers
+  - name: simple_addition_task
     model: gemini/gemini-1.5-flash
-    response_model_name: AdditionResult
+    response_model_name: SimpleAdditionResult
     parameters:
       - name: num1
         type: text

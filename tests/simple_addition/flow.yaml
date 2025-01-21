@@ -1,5 +1,5 @@
 flows:
-  - name: simple_addition
+  - name: simple_addition_flow
     inputs:
       - name: num1
         type: text
@@ -8,7 +8,7 @@ flows:
         type: text
         description: The second number to add
     tasks:
-      - name: add_numbers
+      - name: simple_addition_task
         arguments:
           - parameter: num1
             source_type: input

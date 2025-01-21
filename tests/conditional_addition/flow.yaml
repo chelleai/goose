@@ -1,0 +1,65 @@
+flows:
+  - name: conditional_addition_flow_split
+    inputs:
+      - name: num1
+        type: text
+        description: The first number to add
+      - name: num2
+        type: text
+        description: The second number to add
+      - name: num3
+        type: text
+        description: The third number to add
+    tasks:
+      - name: first_simple_addition_task
+        arguments:
+          - parameter: num1
+            source_type: input
+            source: num1
+          - parameter: num2
+            source_type: input
+            source: num2
+      - name: second_simple_addition_task
+        if:
+          - parameter: sum1
+            match_path: $.result
+            match: "3"
+        arguments:
+          - parameter: sum1
+            source_type: task
+            source: first_simple_addition_task
+          - parameter: num3
+            source_type: input
+            source: num3
+  # - name: conditional_addition_flow_reuse
+  #   inputs:
+  #     - name: num1
+  #       type: text
+  #       description: The first number to add
+  #     - name: num2
+  #       type: text
+  #       description: The second number to add
+  #     - name: num3
+  #       type: text
+  #       description: The third number to add
+  #   tasks:
+  #     - name: simple_addition_task
+  #       arguments:
+  #         - parameter: num1
+  #           source_type: input
+  #           source: num1
+  #         - parameter: num2
+  #           source_type: input
+  #           source: num2
+  #     - name: simple_addition_task
+  #       if:
+  #         - parameter: num1
+  #           match_path: $.result
+  #           match: "3"
+  #       arguments:
+  #         - parameter: num1
+  #           source_type: task
+  #           source: simple_addition_task
+  #         - parameter: num2
+  #           source_type: input
+  #           source: num3
