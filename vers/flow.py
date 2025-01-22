@@ -306,8 +306,6 @@ class Flow:
                 )
             )
 
-        print(task.name)
-
         for condition in flow_task_spec.conditions or []:
             match_value = (
                 parse(condition.match_path)
