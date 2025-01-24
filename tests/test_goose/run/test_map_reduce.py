@@ -22,7 +22,7 @@ async def test_map_reduce() -> None:
         words = [generate_random_word(n_characters=10) for _ in range(10)]
         concatenated_words = concatenate(words=words)
 
-    await flow.run()
+    await flow.generate()
 
     for word in words:
         assert word.out in concatenated_words.out

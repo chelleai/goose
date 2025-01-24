@@ -22,6 +22,6 @@ async def test_downstream_task() -> None:
         word = generate_random_word(n_characters=10)
         duplicated_word = duplicate_word(word=word, times=10)
 
-    await flow.run()
+    await flow.generate()
 
     assert len(duplicated_word.out) == 100

@@ -16,6 +16,6 @@ async def test_single_task() -> None:
     with Flow(name="random_word") as flow:
         word = generate_random_word(n_characters=10)
 
-    await flow.run()
+    await flow.generate()
 
     assert len(word.out) == 10
