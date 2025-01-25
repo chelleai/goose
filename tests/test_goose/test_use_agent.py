@@ -9,6 +9,10 @@ from goose.core import Flow, Node, task
 from goose.types import AgentResponse, GeminiModel, TextMessagePart, UserMessage
 
 
+class Age(BaseModel):
+    age: int
+
+
 class MockLiteLLMResponse:
     def __init__(
         self, *, model: BaseModel, prompt_tokens: int, completion_tokens: int
@@ -47,8 +51,8 @@ async def generate_person(*, agent: Agent) -> GeneratedPerson:
 
 
 @task
-async def double_age(*, person: Node[GeneratedPerson]) -> int:
-    return person.result.age * 2
+async def double_age(*, person: Node[GeneratedPerson]) -> Age:
+    return Age(age=person.result.age * 2)
 
 
 @pytest.mark.asyncio
@@ -60,7 +64,7 @@ async def test_use_agent_uses_response() -> None:
 
     await flow.generate()
 
-    assert doubled_age.result == 60
+    assert doubled_age.result.age == 60
 
 
 @pytest.mark.asyncio

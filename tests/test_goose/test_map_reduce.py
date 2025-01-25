@@ -2,18 +2,25 @@ import random
 import string
 
 import pytest
+from pydantic import BaseModel
 
 from goose.core import Flow, Node, task
 
 
-@task
-async def generate_random_word(*, n_characters: int) -> str:
-    return "".join(random.sample(string.ascii_lowercase, n_characters))
+class GeneratedWord(BaseModel):
+    word: str
 
 
 @task
-async def concatenate(*, words: list[Node[str]]) -> str:
-    return "".join([word.result for word in words])
+async def generate_random_word(*, n_characters: int) -> GeneratedWord:
+    return GeneratedWord(
+        word="".join(random.sample(string.ascii_lowercase, n_characters))
+    )
+
+
+@task
+async def concatenate(*, words: list[Node[GeneratedWord]]) -> GeneratedWord:
+    return GeneratedWord(word="".join([word.result.word for word in words]))
 
 
 @pytest.mark.asyncio
@@ -25,6 +32,6 @@ async def test_map_reduce() -> None:
     await flow.generate()
 
     for word in words:
-        assert word.result in concatenated_words.result
+        assert word.result.word in concatenated_words.result.word
 
-    assert len(concatenated_words.result) == 100
+    assert len(concatenated_words.result.word) == 100

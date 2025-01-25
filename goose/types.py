@@ -5,10 +5,6 @@ from typing import ClassVar, Literal, NotRequired, TypedDict
 
 from pydantic import BaseModel, computed_field
 
-Primitive = str | int | float | bool
-Collection = list[Primitive] | dict[str, Primitive]
-SerializableResult = Primitive | Collection | BaseModel
-
 
 class GeminiModel(StrEnum):
     EXP = "gemini/gemini-exp-1121"

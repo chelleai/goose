@@ -1,10 +1,9 @@
 import asyncio
 import contextvars
 import inspect
-import json
 from collections import defaultdict
 from types import TracebackType
-from typing import Any, Awaitable, Callable, NewType, Protocol, Self, overload
+from typing import Any, Awaitable, Callable, Protocol, Self, overload
 
 from graphlib import TopologicalSorter
 from pydantic import BaseModel
@@ -12,30 +11,31 @@ from pydantic import BaseModel
 from goose.agent import Agent
 from goose.conversation import Conversation, ConversationState
 from goose.regenerator import default_regenerator
-from goose.types import AgentResponse, SerializableResult, UserMessage
-
-ResultState = NewType("ResultState", str)
+from goose.types import AgentResponse, UserMessage
 
 
-class NodeState(BaseModel):
+class NodeState[R: BaseModel](BaseModel):
     name: str
-    result_state: ResultState
-    conversation_state: ConversationState
+    conversation: ConversationState[R]
+
+    @property
+    def result(self) -> R:
+        return self.conversation.results[-1]
 
 
 class FlowState(BaseModel):
-    nodes: list[NodeState]
+    nodes: list[NodeState[BaseModel]]
 
 
 class NoResult:
     pass
 
 
-class IRegenerator[R: SerializableResult](Protocol):
+class IRegenerator[R: BaseModel](Protocol):
     async def __call__(self, *, result: R, conversation: Conversation[R]) -> R: ...
 
 
-class Task[**P, R: SerializableResult]:
+class Task[**P, R: BaseModel]:
     def __init__(
         self, generator: Callable[P, Awaitable[R]], /, *, retries: int = 0
     ) -> None:
@@ -79,7 +79,7 @@ class Task[**P, R: SerializableResult]:
             raise ValueError("Positional-only parameters are not supported in Tasks")
 
 
-class Node[R: SerializableResult]:
+class Node[R: BaseModel]:
     def __init__(
         self,
         *,
@@ -91,7 +91,7 @@ class Node[R: SerializableResult]:
         self.task = task
         self.arguments = arguments
         self.result_type = result_type
-        self._conversation = conversation
+        self.conversation = conversation or Conversation[R]()
         self.name = task.name
 
         self._result: R | NoResult = NoResult()
@@ -99,14 +99,6 @@ class Node[R: SerializableResult]:
         if current_flow is None:
             raise RuntimeError("Cannot create a node without an active flow")
         self.id = current_flow.add_node(node=self)
-
-    @property
-    def conversation(self) -> Conversation[R] | None:
-        return self._conversation
-
-    @conversation.setter
-    def conversation(self, conversation: Conversation[R]) -> None:
-        self._conversation = conversation
 
     @property
     def has_result(self) -> bool:
@@ -120,45 +112,28 @@ class Node[R: SerializableResult]:
 
     async def generate(self) -> None:
         self._result = await self.task.generate(**self.arguments)
+        self.conversation.replace_last_result(result=self.result)
 
-    async def regenerate(self) -> None:
-        if self.conversation is None:
-            raise RuntimeError("Cannot regenerate a node without a conversation")
-
+    async def regenerate(self, *, message: UserMessage) -> None:
+        self.conversation.add_message(message=message)
         self._result = await self.task.regenerate(
             result=self.result, conversation=self.conversation
         )
+        self.conversation.add_result(result=self.result)
 
-    def dump_state(self) -> NodeState:
-        if isinstance(self.result, BaseModel):
-            result_state = self.result.model_dump_json()
-        else:
-            result_state = json.dumps(self.result)
+    def dump_state(self) -> NodeState[R]:
+        return NodeState(name=self.name, conversation=self.conversation.dump())
 
-        return NodeState(
-            name=self.name,
-            result_state=ResultState(result_state),
-            conversation_state=self._conversation.dump()
-            if self._conversation is not None
-            else ConversationState("{}"),
+    def load_state(self, *, state: NodeState[R]) -> None:
+        self._result = state.result
+        self.conversation = Conversation[self.result_type].load(
+            state=state.conversation
         )
 
-    def load_state(self, *, node_state: NodeState) -> None:
-        if issubclass(self.result_type, BaseModel):
-            self._result = self.result_type.model_validate_json(node_state.result_state)
-        elif issubclass(self.result_type, list) or issubclass(self.result_type, dict):
-            self._result = json.loads(node_state.result_state)
-        else:
-            self._result = self.result_type(node_state.result_state)
-
-        self._conversation = Conversation[self.result_type].load(
-            state=node_state.conversation_state, result_type=self.result_type
-        )
-
-    def get_inbound_nodes(self) -> list["Node[SerializableResult]"]:
+    def get_inbound_nodes(self) -> list["Node[BaseModel]"]:
         def __find_nodes(
             obj: Any, visited: set[int] | None = None
-        ) -> list["Node[SerializableResult]"]:
+        ) -> list["Node[BaseModel]"]:
             if visited is None:
                 visited = set()
 
@@ -202,24 +177,26 @@ class Flow:
         agent_logger: Callable[[AgentResponse[Any]], None] | None = None,
     ) -> None:
         self.name = name
-        self._nodes: list[Node[SerializableResult]] = []
+        self._nodes: list[Node[BaseModel]] = []
         self._agent = Agent(flow_name=self.name, logger=agent_logger)
 
     @property
     def agent(self) -> Agent:
         return self._agent
 
+    def dump_state(self) -> FlowState:
+        return FlowState(nodes=[node.dump_state() for node in self._nodes])
+
     def load_state(self, *, flow_state: FlowState) -> None:
+        nodes_by_name = {node.name: node for node in self._nodes}
         for node_state in flow_state.nodes:
-            matching_node = next(
-                (node for node in self._nodes if node.name == node_state.name), None
-            )
+            matching_node = nodes_by_name.get(node_state.name)
             if matching_node is None:
                 raise RuntimeError(
                     f"Node {node_state.name} from state not found in flow"
                 )
 
-            matching_node.load_state(node_state=node_state)
+            matching_node.load_state(state=node_state)
 
     async def generate(self) -> None:
         graph = {node: node.get_inbound_nodes() for node in self._nodes}
@@ -236,33 +213,21 @@ class Flow:
                 else:
                     await asyncio.sleep(0)
 
-    async def regenerate(
-        self,
-        *,
-        target: Node[Any],  # Any because SerializableResult is not covariant
-        message: UserMessage,
-    ) -> None:
+    async def regenerate(self, *, target: Node[Any], message: UserMessage) -> None:
         if not target.has_result:
             raise RuntimeError("Cannot regenerate a node without a result")
 
-        if target.conversation is None:
-            target.conversation = Conversation(results=[target.result])
-        target.conversation.add_message(message=message)
-        await target.regenerate()
+        await target.regenerate(message=message)
 
         # regenerate all downstream nodes
         full_graph = {node: node.get_inbound_nodes() for node in self._nodes}
-        reversed_graph: dict[
-            Node[SerializableResult], set[Node[SerializableResult]]
-        ] = defaultdict(set)
+        reversed_graph: dict[Node[BaseModel], set[Node[BaseModel]]] = defaultdict(set)
         for node, inbound_nodes in full_graph.items():
             for inbound_node in inbound_nodes:
                 reversed_graph[inbound_node].add(node)
 
-        subgraph: dict[Node[SerializableResult], set[Node[SerializableResult]]] = (
-            defaultdict(set)
-        )
-        queue: list[Node[SerializableResult]] = [target]
+        subgraph: dict[Node[BaseModel], set[Node[BaseModel]]] = defaultdict(set)
+        queue: list[Node[BaseModel]] = [target]
 
         while len(queue) > 0:
             node = queue.pop(0)
@@ -291,7 +256,7 @@ class Flow:
     def get_current(cls) -> "Flow | None":
         return cls._current.get()
 
-    def add_node(self, *, node: Node[SerializableResult]) -> str:
+    def add_node(self, *, node: Node[Any]) -> str:
         existing_names = [node.name for node in self._nodes]
         number = sum(1 for name in existing_names if name == node.name)
         self._nodes.append(node)
@@ -316,14 +281,12 @@ class Flow:
 
 
 @overload
-def task[**P, R: SerializableResult](
-    fn: Callable[P, Awaitable[R]], /
-) -> Task[P, R]: ...
+def task[**P, R: BaseModel](fn: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
 @overload
-def task[**P, R: SerializableResult](
+def task[**P, R: BaseModel](
     *, retries: int = 0
 ) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
-def task[**P, R: SerializableResult](
+def task[**P, R: BaseModel](
     fn: Callable[P, Awaitable[R]] | None = None, /, *, retries: int = 0
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if fn is None:

@@ -1,35 +1,26 @@
-from typing import NewType
-
 from pydantic import BaseModel
 
-from goose.types import SerializableResult, UserMessage
-
-ConversationState = NewType("ConversationState", str)
+from goose.types import UserMessage
 
 
-class ConversationDump[R: SerializableResult](BaseModel):
-    messages: list[UserMessage]
+class ConversationState[R: BaseModel](BaseModel):
+    user_messages: list[UserMessage]
     results: list[R]
 
 
-class Conversation[R: SerializableResult]:
+class Conversation[R: BaseModel]:
     def __init__(
-        self, *, messages: list[UserMessage] = [], results: list[R] = []
+        self,
+        *,
+        user_messages: list[UserMessage] | None = None,
+        results: list[R] | None = None,
     ) -> None:
-        self.messages: list[UserMessage] = messages
-        self.results: list[R] = results
+        self.user_messages = user_messages or []
+        self.results = results or []
 
     @classmethod
-    def load(
-        cls, *, state: ConversationState, result_type: type[R]
-    ) -> "Conversation[R]":
-        dump = ConversationDump.model_validate_json(state)
-        return cls(
-            messages=dump.messages,
-            results=[
-                result_type.model_validate_json(result) for result in dump.results
-            ],
-        )
+    def load(cls, *, state: ConversationState[R]) -> "Conversation[R]":
+        return cls(user_messages=state.user_messages, results=state.results)
 
     @property
     def current_result(self) -> R:
@@ -39,8 +30,16 @@ class Conversation[R: SerializableResult]:
         return self.results[-1]
 
     def add_message(self, *, message: UserMessage) -> None:
-        self.messages.append(message)
+        self.user_messages.append(message)
 
-    def dump(self) -> ConversationState:
-        dump = ConversationDump(messages=self.messages, results=self.results)
-        return ConversationState(dump.model_dump_json())
+    def add_result(self, *, result: R) -> None:
+        self.results.append(result)
+
+    def replace_last_result(self, *, result: R) -> None:
+        if len(self.results) == 0:
+            self.results.append(result)
+        else:
+            self.results[-1] = result
+
+    def dump(self) -> ConversationState[R]:
+        return ConversationState(user_messages=self.user_messages, results=self.results)

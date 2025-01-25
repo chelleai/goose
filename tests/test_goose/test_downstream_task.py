@@ -2,18 +2,25 @@ import random
 import string
 
 import pytest
+from pydantic import BaseModel
 
 from goose.core import Flow, Node, task
 
 
-@task
-async def generate_random_word(*, n_characters: int) -> str:
-    return "".join(random.sample(string.ascii_lowercase, n_characters))
+class GeneratedWord(BaseModel):
+    word: str
 
 
 @task
-async def duplicate_word(*, word: Node[str], times: int) -> str:
-    return "".join([word.result] * times)
+async def generate_random_word(*, n_characters: int) -> GeneratedWord:
+    return GeneratedWord(
+        word="".join(random.sample(string.ascii_lowercase, n_characters))
+    )
+
+
+@task
+async def duplicate_word(*, word: Node[GeneratedWord], times: int) -> GeneratedWord:
+    return GeneratedWord(word="".join([word.result.word] * times))
 
 
 @pytest.mark.asyncio
@@ -24,4 +31,4 @@ async def test_downstream_task() -> None:
 
     await flow.generate()
 
-    assert len(duplicated_word.result) == 100
+    assert len(duplicated_word.result.word) == 100
