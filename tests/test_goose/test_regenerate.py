@@ -5,7 +5,7 @@ import pytest
 
 from goose.conversation import Conversation
 from goose.core import Flow, Node, task
-from goose.types.messages import TextMessagePart, UserMessage
+from goose.types import TextMessagePart, UserMessage
 
 
 @task
@@ -22,7 +22,7 @@ async def regenerate_random_word(
 
 @task
 async def duplicate_word(*, word: Node[str], times: int) -> str:
-    return "".join([word.out] * times)
+    return "".join([word.result] * times)
 
 
 @duplicate_word.regenerator
@@ -39,21 +39,21 @@ async def test_regenerate_no_downstream_nodes() -> None:
         duplicated_word = duplicate_word(word=word, times=10)
 
     await flow.generate()
-    initial_result = duplicated_word.out
+    initial_result = duplicated_word.result
 
     await flow.regenerate(
         target=duplicated_word,
         message=UserMessage(parts=[TextMessagePart(text="regenerate this")]),
     )
 
-    assert duplicated_word.out == "Regenerated " + initial_result
+    assert duplicated_word.result == "Regenerated " + initial_result
 
 
 @pytest.mark.asyncio
-async def test_regenerate_with_downstream_nodes() -> None:
+async def test_regenerate_with_downstream_node() -> None:
     with Flow(name="regenerate") as flow:
         word = generate_random_word(n_characters=10)
-        duplicated_word = duplicate_word(word=word, times=10)
+        duplicated_word = duplicate_word(word=word, times=2)
 
     await flow.generate()
 
@@ -62,5 +62,5 @@ async def test_regenerate_with_downstream_nodes() -> None:
         message=UserMessage(parts=[TextMessagePart(text="regenerate this")]),
     )
 
-    assert word.out == "Random word"
-    assert duplicated_word.out == "Regenerated Random word"
+    assert word.result == "Random word"
+    assert duplicated_word.result == "Random wordRandom word"

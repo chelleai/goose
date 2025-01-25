@@ -1,6 +1,6 @@
 from typing import Any, TypedDict
 
-from goose.types.messages import UserMessage
+from goose.types import UserMessage
 
 
 class ConversationDump(TypedDict):

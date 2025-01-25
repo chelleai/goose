@@ -13,7 +13,7 @@ async def generate_random_word(*, n_characters: int) -> str:
 
 @task
 async def concatenate(*, words: list[Node[str]]) -> str:
-    return "".join([word.out for word in words])
+    return "".join([word.result for word in words])
 
 
 @pytest.mark.asyncio
@@ -25,6 +25,6 @@ async def test_map_reduce() -> None:
     await flow.generate()
 
     for word in words:
-        assert word.out in concatenated_words.out
+        assert word.result in concatenated_words.result
 
-    assert len(concatenated_words.out) == 100
+    assert len(concatenated_words.result) == 100

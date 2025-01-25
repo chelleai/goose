@@ -1,14 +1,26 @@
 import asyncio
 import contextvars
 import inspect
+import logging
+import uuid
+from collections import defaultdict
+from datetime import datetime
 from types import TracebackType
 from typing import Any, Awaitable, Callable, Protocol, Self, overload
 
 from graphlib import TopologicalSorter
+from litellm import acompletion
+from pydantic import BaseModel
 
 from goose.conversation import Conversation
 from goose.regenerator import default_regenerator
-from goose.types.messages import UserMessage
+from goose.types import (
+    AgentResponse,
+    AssistantMessage,
+    GeminiModel,
+    SystemMessage,
+    UserMessage,
+)
 
 
 class NoResult:
@@ -17,6 +29,65 @@ class NoResult:
 
 class IRegenerator[R](Protocol):
     async def __call__(self, *, result: R, conversation: Conversation[R]) -> R: ...
+
+
+class Agent:
+    def __init__(
+        self,
+        *,
+        flow_name: str,
+        logger: Callable[[AgentResponse[Any]], None] | None = None,
+    ) -> None:
+        self.flow_name = flow_name
+        self.logger = logger or logging.info
+
+    async def __call__[R: BaseModel](
+        self,
+        *,
+        messages: list[UserMessage | AssistantMessage],
+        model: GeminiModel,
+        response_model: type[R],
+        task_name: str,
+        system: SystemMessage | None = None,
+    ) -> R:
+        start_time = datetime.now()
+        rendered_messages = [message.render() for message in messages]
+        if system is not None:
+            rendered_messages.insert(0, system.render())
+
+        response = await acompletion(
+            model=model.value,
+            messages=rendered_messages,
+            response_format={
+                "type": "json_object",
+                "response_schema": response_model.model_json_schema(),
+                "enforce_validation": True,
+            },
+        )
+
+        if len(response.choices) == 0:
+            raise RuntimeError("No content returned from LLM call.")
+
+        parsed_response = response_model.model_validate_json(
+            response.choices[0].message.content
+        )
+        end_time = datetime.now()
+        agent_response = AgentResponse(
+            response=parsed_response,
+            id=str(uuid.uuid4()),
+            flow_name=self.flow_name,
+            task_name=task_name,
+            model=model,
+            system=system,
+            input_messages=messages,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        self.logger(agent_response)
+        return agent_response.response
 
 
 class Node[R]:
@@ -32,7 +103,7 @@ class Node[R]:
         self.conversation = conversation
         self.name = task.name
 
-        self._out: R | NoResult = NoResult()
+        self._result: R | NoResult = NoResult()
         current_flow = Flow.get_current()
         if current_flow is None:
             raise RuntimeError("Cannot create a node without an active flow")
@@ -40,27 +111,27 @@ class Node[R]:
 
     @property
     def has_result(self) -> bool:
-        return not isinstance(self._out, NoResult)
+        return not isinstance(self._result, NoResult)
 
     @property
-    def out(self) -> R:
-        if isinstance(self._out, NoResult):
+    def result(self) -> R:
+        if isinstance(self._result, NoResult):
             raise RuntimeError("Cannot access result of a node before it has run")
-        return self._out
+        return self._result
 
     async def generate(self) -> None:
-        self._out = await self.task.generate(**self.arguments)
+        self._result = await self.task.generate(**self.arguments)
 
     async def regenerate(self) -> None:
         if self.conversation is None:
             raise RuntimeError("Cannot regenerate a node without a conversation")
 
-        self._out = await self.task.regenerate(
-            result=self.out, conversation=self.conversation
+        self._result = await self.task.regenerate(
+            result=self.result, conversation=self.conversation
         )
 
     def set_result(self, result: R, /) -> None:
-        self._out = result
+        self._result = result
 
     def set_conversation(self, conversation: Conversation[R], /) -> None:
         self.conversation = conversation
@@ -141,9 +212,19 @@ class Flow:
         "current_flow", default=None
     )
 
-    def __init__(self, *, name: str) -> None:
+    def __init__(
+        self,
+        *,
+        name: str,
+        agent_logger: Callable[[AgentResponse[Any]], None] | None = None,
+    ) -> None:
         self.name = name
         self._nodes: list[Node[Any]] = []
+        self._agent = Agent(flow_name=self.name, logger=agent_logger)
+
+    @property
+    def agent(self) -> Agent:
+        return self._agent
 
     def add_node(self, *, node: Node[Any]) -> str:
         existing_names = [node.name for node in self._nodes]
@@ -172,23 +253,39 @@ class Flow:
             raise RuntimeError("Cannot regenerate a node without a result")
 
         if target.conversation is None:
-            target.conversation = Conversation(results=[target.out])
+            target.conversation = Conversation(results=[target.result])
         target.conversation.add_message(message=message)
+        await target.regenerate()
 
-        downstream_nodes: set[Node[Any]] = set()
-        graph: dict[Node[Any], list[Node[Any]]] = {}
+        # regenerate all downstream nodes
+        full_graph = {node: node.get_inbound_nodes() for node in self._nodes}
+        reversed_graph: dict[Node[Any], set[Node[Any]]] = defaultdict(set)
+        for node, inbound_nodes in full_graph.items():
+            for inbound_node in inbound_nodes:
+                reversed_graph[inbound_node].add(node)
 
-        if len(downstream_nodes) > 0:
-            subgraph = {node: graph[node] for node in downstream_nodes}
+        subgraph: dict[Node[Any], set[Node[Any]]] = defaultdict(set)
+        queue: list[Node[Any]] = [target]
+
+        while len(queue) > 0:
+            node = queue.pop(0)
+            outbound_nodes = reversed_graph[node]
+            for outbound_node in outbound_nodes:
+                subgraph[outbound_node].add(node)
+                if outbound_node not in subgraph:
+                    queue.append(outbound_node)
+
+        if len(subgraph) > 0:
             sorter = TopologicalSorter(subgraph)
             sorter.prepare()
 
             async with asyncio.TaskGroup() as task_group:
                 while sorter.is_active():
                     ready_nodes = list(sorter.get_ready())
-                    if ready_nodes:
+                    if len(ready_nodes) > 0:
                         for node in ready_nodes:
-                            task_group.create_task(node.generate())
+                            if node != target:
+                                task_group.create_task(node.generate())
                         sorter.done(*ready_nodes)
                     else:
                         await asyncio.sleep(0)

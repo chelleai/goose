@@ -13,7 +13,7 @@ async def generate_random_word(*, n_characters: int) -> str:
 
 @task
 async def duplicate_word(*, word: Node[str], times: int) -> str:
-    return "".join([word.out] * times)
+    return "".join([word.result] * times)
 
 
 @pytest.mark.asyncio
@@ -24,4 +24,4 @@ async def test_downstream_task() -> None:
 
     await flow.generate()
 
-    assert len(duplicated_word.out) == 100
+    assert len(duplicated_word.result) == 100

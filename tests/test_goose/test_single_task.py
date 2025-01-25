@@ -18,4 +18,4 @@ async def test_single_task() -> None:
 
     await flow.generate()
 
-    assert len(word.out) == 10
+    assert len(word.result) == 10
