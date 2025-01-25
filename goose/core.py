@@ -1,37 +1,97 @@
 import asyncio
 import contextvars
 import inspect
+import json
 from collections import defaultdict
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Protocol, Self, overload
+from typing import Any, Awaitable, Callable, NewType, Protocol, Self, overload
 
 from graphlib import TopologicalSorter
+from pydantic import BaseModel
 
 from goose.agent import Agent
-from goose.conversation import Conversation
+from goose.conversation import Conversation, ConversationState
 from goose.regenerator import default_regenerator
-from goose.types import AgentResponse, UserMessage
+from goose.types import AgentResponse, SerializableResult, UserMessage
+
+ResultState = NewType("ResultState", str)
+
+
+class NodeState(BaseModel):
+    name: str
+    result_state: ResultState
+    conversation_state: ConversationState
+
+
+class FlowState(BaseModel):
+    nodes: list[NodeState]
 
 
 class NoResult:
     pass
 
 
-class IRegenerator[R](Protocol):
+class IRegenerator[R: SerializableResult](Protocol):
     async def __call__(self, *, result: R, conversation: Conversation[R]) -> R: ...
 
 
-class Node[R]:
+class Task[**P, R: SerializableResult]:
+    def __init__(
+        self, generator: Callable[P, Awaitable[R]], /, *, retries: int = 0
+    ) -> None:
+        self.retries = retries
+        self._generator = generator
+        self._regenerator: IRegenerator[R] = default_regenerator
+        self._signature = inspect.signature(generator)
+        self.__validate_fn()
+
+    @property
+    def result_type(self) -> type[R]:
+        return_type = self._generator.__annotations__.get("return")
+        if return_type is None:
+            raise TypeError("Task must have a return type annotation")
+
+        return return_type
+
+    @property
+    def name(self) -> str:
+        return self._generator.__name__
+
+    def regenerator(self, regenerator: IRegenerator[R], /) -> Self:
+        self._regenerator = regenerator
+        return self
+
+    async def generate(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        return await self._generator(*args, **kwargs)
+
+    async def regenerate(self, *, result: R, conversation: Conversation[R]) -> R:
+        return await self._regenerator(result=result, conversation=conversation)
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> "Node[R]":
+        arguments = self._signature.bind(*args, **kwargs).arguments
+        return Node(task=self, arguments=arguments, result_type=self.result_type)
+
+    def __validate_fn(self) -> None:
+        if any(
+            param.kind == inspect.Parameter.POSITIONAL_ONLY
+            for param in self._signature.parameters.values()
+        ):
+            raise ValueError("Positional-only parameters are not supported in Tasks")
+
+
+class Node[R: SerializableResult]:
     def __init__(
         self,
         *,
-        task: "Task[Any, R]",
+        task: Task[Any, R],
         arguments: dict[str, Any],
+        result_type: type[R],
         conversation: Conversation[R] | None = None,
     ) -> None:
         self.task = task
         self.arguments = arguments
-        self.conversation = conversation
+        self.result_type = result_type
+        self._conversation = conversation
         self.name = task.name
 
         self._result: R | NoResult = NoResult()
@@ -39,6 +99,14 @@ class Node[R]:
         if current_flow is None:
             raise RuntimeError("Cannot create a node without an active flow")
         self.id = current_flow.add_node(node=self)
+
+    @property
+    def conversation(self) -> Conversation[R] | None:
+        return self._conversation
+
+    @conversation.setter
+    def conversation(self, conversation: Conversation[R]) -> None:
+        self._conversation = conversation
 
     @property
     def has_result(self) -> bool:
@@ -61,16 +129,36 @@ class Node[R]:
             result=self.result, conversation=self.conversation
         )
 
-    def set_result(self, result: R, /) -> None:
-        self._result = result
+    def dump_state(self) -> NodeState:
+        if isinstance(self.result, BaseModel):
+            result_state = self.result.model_dump_json()
+        else:
+            result_state = json.dumps(self.result)
 
-    def set_conversation(self, conversation: Conversation[R], /) -> None:
-        self.conversation = conversation
+        return NodeState(
+            name=self.name,
+            result_state=ResultState(result_state),
+            conversation_state=self._conversation.dump()
+            if self._conversation is not None
+            else ConversationState("{}"),
+        )
 
-    def get_inbound_nodes(self) -> list["Node[Any]"]:
+    def load_state(self, *, node_state: NodeState) -> None:
+        if issubclass(self.result_type, BaseModel):
+            self._result = self.result_type.model_validate_json(node_state.result_state)
+        elif issubclass(self.result_type, list) or issubclass(self.result_type, dict):
+            self._result = json.loads(node_state.result_state)
+        else:
+            self._result = self.result_type(node_state.result_state)
+
+        self._conversation = Conversation[self.result_type].load(
+            state=node_state.conversation_state, result_type=self.result_type
+        )
+
+    def get_inbound_nodes(self) -> list["Node[SerializableResult]"]:
         def __find_nodes(
             obj: Any, visited: set[int] | None = None
-        ) -> list["Node[Any]"]:
+        ) -> list["Node[SerializableResult]"]:
             if visited is None:
                 visited = set()
 
@@ -102,42 +190,6 @@ class Node[R]:
         return hash(self.id)
 
 
-class Task[**P, R]:
-    def __init__(
-        self, generator: Callable[P, Awaitable[R]], /, *, retries: int = 0
-    ) -> None:
-        self.retries = retries
-        self._generator = generator
-        self._regenerator: IRegenerator[R] = default_regenerator
-        self._signature = inspect.signature(generator)
-        self.__validate_fn()
-
-    @property
-    def name(self) -> str:
-        return self._generator.__name__
-
-    def regenerator(self, regenerator: IRegenerator[R], /) -> Self:
-        self._regenerator = regenerator
-        return self
-
-    async def generate(self, *args: P.args, **kwargs: P.kwargs) -> R:
-        return await self._generator(*args, **kwargs)
-
-    async def regenerate(self, *, result: R, conversation: Conversation[R]) -> R:
-        return await self._regenerator(result=result, conversation=conversation)
-
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Node[R]:
-        arguments = self._signature.bind(*args, **kwargs).arguments
-        return Node(task=self, arguments=arguments)
-
-    def __validate_fn(self) -> None:
-        if any(
-            param.kind == inspect.Parameter.POSITIONAL_ONLY
-            for param in self._signature.parameters.values()
-        ):
-            raise ValueError("Positional-only parameters are not supported in Tasks")
-
-
 class Flow:
     _current: contextvars.ContextVar["Flow | None"] = contextvars.ContextVar(
         "current_flow", default=None
@@ -150,12 +202,24 @@ class Flow:
         agent_logger: Callable[[AgentResponse[Any]], None] | None = None,
     ) -> None:
         self.name = name
-        self._nodes: list[Node[Any]] = []
+        self._nodes: list[Node[SerializableResult]] = []
         self._agent = Agent(flow_name=self.name, logger=agent_logger)
 
     @property
     def agent(self) -> Agent:
         return self._agent
+
+    def load_state(self, *, flow_state: FlowState) -> None:
+        for node_state in flow_state.nodes:
+            matching_node = next(
+                (node for node in self._nodes if node.name == node_state.name), None
+            )
+            if matching_node is None:
+                raise RuntimeError(
+                    f"Node {node_state.name} from state not found in flow"
+                )
+
+            matching_node.load_state(node_state=node_state)
 
     async def generate(self) -> None:
         graph = {node: node.get_inbound_nodes() for node in self._nodes}
@@ -172,7 +236,12 @@ class Flow:
                 else:
                     await asyncio.sleep(0)
 
-    async def regenerate(self, *, target: Node[Any], message: UserMessage) -> None:
+    async def regenerate(
+        self,
+        *,
+        target: Node[Any],  # Any because SerializableResult is not covariant
+        message: UserMessage,
+    ) -> None:
         if not target.has_result:
             raise RuntimeError("Cannot regenerate a node without a result")
 
@@ -183,13 +252,17 @@ class Flow:
 
         # regenerate all downstream nodes
         full_graph = {node: node.get_inbound_nodes() for node in self._nodes}
-        reversed_graph: dict[Node[Any], set[Node[Any]]] = defaultdict(set)
+        reversed_graph: dict[
+            Node[SerializableResult], set[Node[SerializableResult]]
+        ] = defaultdict(set)
         for node, inbound_nodes in full_graph.items():
             for inbound_node in inbound_nodes:
                 reversed_graph[inbound_node].add(node)
 
-        subgraph: dict[Node[Any], set[Node[Any]]] = defaultdict(set)
-        queue: list[Node[Any]] = [target]
+        subgraph: dict[Node[SerializableResult], set[Node[SerializableResult]]] = (
+            defaultdict(set)
+        )
+        queue: list[Node[SerializableResult]] = [target]
 
         while len(queue) > 0:
             node = queue.pop(0)
@@ -218,7 +291,7 @@ class Flow:
     def get_current(cls) -> "Flow | None":
         return cls._current.get()
 
-    def add_node(self, *, node: Node[Any]) -> str:
+    def add_node(self, *, node: Node[SerializableResult]) -> str:
         existing_names = [node.name for node in self._nodes]
         number = sum(1 for name in existing_names if name == node.name)
         self._nodes.append(node)
@@ -243,12 +316,14 @@ class Flow:
 
 
 @overload
-def task[**P, R](fn: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
+def task[**P, R: SerializableResult](
+    fn: Callable[P, Awaitable[R]], /
+) -> Task[P, R]: ...
 @overload
-def task[**P, R](
+def task[**P, R: SerializableResult](
     *, retries: int = 0
 ) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
-def task[**P, R](
+def task[**P, R: SerializableResult](
     fn: Callable[P, Awaitable[R]] | None = None, /, *, retries: int = 0
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if fn is None:

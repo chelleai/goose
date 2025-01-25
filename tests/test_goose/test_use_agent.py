@@ -22,7 +22,7 @@ class MockLiteLLMResponse:
 @pytest.fixture
 def mock_litellm(mocker: MockerFixture) -> Mock:
     return mocker.patch(
-        "goose.core.acompletion",
+        "goose.agent.acompletion",
         return_value=MockLiteLLMResponse(
             model=GeneratedPerson(name="John", age=30),
             prompt_tokens=10,
