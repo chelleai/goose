@@ -6,7 +6,9 @@ from typing import Any, Awaitable, Callable, Protocol, Self, overload
 
 from graphlib import TopologicalSorter
 
-from goose.types.regenerator import Conversation
+from goose.conversation import Conversation
+from goose.regenerator import default_regenerator
+from goose.types.messages import UserMessage
 
 
 class NoResult:
@@ -37,6 +39,10 @@ class Node[R]:
         self.id = current_flow.add_node(node=self)
 
     @property
+    def has_result(self) -> bool:
+        return not isinstance(self._out, NoResult)
+
+    @property
     def out(self) -> R:
         if isinstance(self._out, NoResult):
             raise RuntimeError("Cannot access result of a node before it has run")
@@ -52,6 +58,12 @@ class Node[R]:
         self._out = await self.task.regenerate(
             result=self.out, conversation=self.conversation
         )
+
+    def set_result(self, result: R, /) -> None:
+        self._out = result
+
+    def set_conversation(self, conversation: Conversation[R], /) -> None:
+        self.conversation = conversation
 
     def get_inbound_nodes(self) -> list["Node[Any]"]:
         def __find_nodes(
@@ -94,7 +106,7 @@ class Task[**P, R]:
     ) -> None:
         self.retries = retries
         self._generator = generator
-        self._regenerator: IRegenerator[R] | None = None
+        self._regenerator: IRegenerator[R] = default_regenerator
         self._signature = inspect.signature(generator)
         self.__validate_fn()
 
@@ -102,18 +114,15 @@ class Task[**P, R]:
     def name(self) -> str:
         return self._generator.__name__
 
-    @property
-    def regenerator(self) -> IRegenerator[R]:
-        if self._regenerator is None:
-            raise RuntimeError(f"No regenerator was attached to the {self.name} task")
-
-        return self._regenerator
+    def regenerator(self, regenerator: IRegenerator[R], /) -> Self:
+        self._regenerator = regenerator
+        return self
 
     async def generate(self, *args: P.args, **kwargs: P.kwargs) -> R:
         return await self._generator(*args, **kwargs)
 
     async def regenerate(self, *, result: R, conversation: Conversation[R]) -> R:
-        return await self.regenerator(result=result, conversation=conversation)
+        return await self._regenerator(result=result, conversation=conversation)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Node[R]:
         arguments = self._signature.bind(*args, **kwargs).arguments
@@ -157,6 +166,32 @@ class Flow:
                     sorter.done(*ready_nodes)
                 else:
                     await asyncio.sleep(0)
+
+    async def regenerate(self, *, target: Node[Any], message: UserMessage) -> None:
+        if not target.has_result:
+            raise RuntimeError("Cannot regenerate a node without a result")
+
+        if target.conversation is None:
+            target.conversation = Conversation(results=[target.out])
+        target.conversation.add_message(message=message)
+
+        downstream_nodes: set[Node[Any]] = set()
+        graph: dict[Node[Any], list[Node[Any]]] = {}
+
+        if len(downstream_nodes) > 0:
+            subgraph = {node: graph[node] for node in downstream_nodes}
+            sorter = TopologicalSorter(subgraph)
+            sorter.prepare()
+
+            async with asyncio.TaskGroup() as task_group:
+                while sorter.is_active():
+                    ready_nodes = list(sorter.get_ready())
+                    if ready_nodes:
+                        for node in ready_nodes:
+                            task_group.create_task(node.generate())
+                        sorter.done(*ready_nodes)
+                    else:
+                        await asyncio.sleep(0)
 
     @classmethod
     def get_current(cls) -> "Flow | None":
