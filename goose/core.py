@@ -1,26 +1,16 @@
 import asyncio
 import contextvars
 import inspect
-import logging
-import uuid
 from collections import defaultdict
-from datetime import datetime
 from types import TracebackType
 from typing import Any, Awaitable, Callable, Protocol, Self, overload
 
 from graphlib import TopologicalSorter
-from litellm import acompletion
-from pydantic import BaseModel
 
+from goose.agent import Agent
 from goose.conversation import Conversation
 from goose.regenerator import default_regenerator
-from goose.types import (
-    AgentResponse,
-    AssistantMessage,
-    GeminiModel,
-    SystemMessage,
-    UserMessage,
-)
+from goose.types import AgentResponse, UserMessage
 
 
 class NoResult:
@@ -29,65 +19,6 @@ class NoResult:
 
 class IRegenerator[R](Protocol):
     async def __call__(self, *, result: R, conversation: Conversation[R]) -> R: ...
-
-
-class Agent:
-    def __init__(
-        self,
-        *,
-        flow_name: str,
-        logger: Callable[[AgentResponse[Any]], None] | None = None,
-    ) -> None:
-        self.flow_name = flow_name
-        self.logger = logger or logging.info
-
-    async def __call__[R: BaseModel](
-        self,
-        *,
-        messages: list[UserMessage | AssistantMessage],
-        model: GeminiModel,
-        response_model: type[R],
-        task_name: str,
-        system: SystemMessage | None = None,
-    ) -> R:
-        start_time = datetime.now()
-        rendered_messages = [message.render() for message in messages]
-        if system is not None:
-            rendered_messages.insert(0, system.render())
-
-        response = await acompletion(
-            model=model.value,
-            messages=rendered_messages,
-            response_format={
-                "type": "json_object",
-                "response_schema": response_model.model_json_schema(),
-                "enforce_validation": True,
-            },
-        )
-
-        if len(response.choices) == 0:
-            raise RuntimeError("No content returned from LLM call.")
-
-        parsed_response = response_model.model_validate_json(
-            response.choices[0].message.content
-        )
-        end_time = datetime.now()
-        agent_response = AgentResponse(
-            response=parsed_response,
-            id=str(uuid.uuid4()),
-            flow_name=self.flow_name,
-            task_name=task_name,
-            model=model,
-            system=system,
-            input_messages=messages,
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-            start_time=start_time,
-            end_time=end_time,
-        )
-
-        self.logger(agent_response)
-        return agent_response.response
 
 
 class Node[R]:
@@ -226,13 +157,6 @@ class Flow:
     def agent(self) -> Agent:
         return self._agent
 
-    def add_node(self, *, node: Node[Any]) -> str:
-        existing_names = [node.name for node in self._nodes]
-        number = sum(1 for name in existing_names if name == node.name)
-        self._nodes.append(node)
-        node_id = f"{node.name}_{number}"
-        return node_id
-
     async def generate(self) -> None:
         graph = {node: node.get_inbound_nodes() for node in self._nodes}
         sorter = TopologicalSorter(graph)
@@ -293,6 +217,13 @@ class Flow:
     @classmethod
     def get_current(cls) -> "Flow | None":
         return cls._current.get()
+
+    def add_node(self, *, node: Node[Any]) -> str:
+        existing_names = [node.name for node in self._nodes]
+        number = sum(1 for name in existing_names if name == node.name)
+        self._nodes.append(node)
+        node_id = f"{node.name}_{number}"
+        return node_id
 
     def __enter__(self) -> Self:
         if self._current.get() is not None:

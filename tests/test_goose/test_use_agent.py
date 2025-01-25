@@ -4,7 +4,8 @@ import pytest
 from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
-from goose.core import Agent, Flow, Node, task
+from goose.agent import Agent
+from goose.core import Flow, Node, task
 from goose.types import AgentResponse, GeminiModel, TextMessagePart, UserMessage
 
 
