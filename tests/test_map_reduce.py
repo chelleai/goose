@@ -25,7 +25,7 @@ async def concatenate(*, words: list[Node[GeneratedWord]]) -> GeneratedWord:
 
 @pytest.mark.asyncio
 async def test_map_reduce() -> None:
-    with Flow(name="map_reduce") as flow:
+    with Flow(name="map_reduce", run_id="run1") as flow:
         words = [generate_random_word(n_characters=10) for _ in range(10)]
         concatenated_words = concatenate(words=words)
 

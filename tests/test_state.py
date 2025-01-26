@@ -24,7 +24,7 @@ async def regenerate_word(
 
 @pytest.mark.asyncio
 async def test_dump_state() -> None:
-    with Flow(name="test") as flow:
+    with Flow(name="test", run_id="run1") as flow:
         generate_word()
 
     await flow.generate()
@@ -50,7 +50,7 @@ async def test_load_from_state():
         ]
     )
 
-    with Flow(name="test") as flow:
+    with Flow(name="test", run_id="run1") as flow:
         word = generate_word()
 
     flow.load_state(flow_state=flow_state)

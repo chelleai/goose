@@ -25,7 +25,7 @@ async def duplicate_word(*, word: Node[GeneratedWord], times: int) -> GeneratedW
 
 @pytest.mark.asyncio
 async def test_downstream_task() -> None:
-    with Flow(name="downstream_task") as flow:
+    with Flow(name="downstream_task", run_id="run1") as flow:
         word = generate_random_word(n_characters=10)
         duplicated_word = duplicate_word(word=word, times=10)
 

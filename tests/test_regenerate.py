@@ -41,7 +41,7 @@ async def regenerate_duplicate_word(
 
 @pytest.mark.asyncio
 async def test_regenerate_no_downstream_nodes() -> None:
-    with Flow(name="regenerate") as flow:
+    with Flow(name="regenerate", run_id="run1") as flow:
         word = generate_random_word(n_characters=10)
         duplicated_word = duplicate_word(word=word, times=10)
 
@@ -58,7 +58,7 @@ async def test_regenerate_no_downstream_nodes() -> None:
 
 @pytest.mark.asyncio
 async def test_regenerate_with_downstream_node() -> None:
-    with Flow(name="regenerate") as flow:
+    with Flow(name="regenerate", run_id="run1") as flow:
         word = generate_random_word(n_characters=10)
         duplicated_word = duplicate_word(word=word, times=2)
 
@@ -75,7 +75,7 @@ async def test_regenerate_with_downstream_node() -> None:
 
 @pytest.mark.asyncio
 async def test_regenerate_adds_to_conversation() -> None:
-    with Flow(name="regenerate") as flow:
+    with Flow(name="regenerate", run_id="run1") as flow:
         word = generate_random_word(n_characters=10)
         duplicated_word = duplicate_word(word=word, times=2)
 

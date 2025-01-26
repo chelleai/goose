@@ -58,7 +58,7 @@ async def double_age(*, person: Node[GeneratedPerson]) -> Age:
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_litellm")
 async def test_use_agent_uses_response() -> None:
-    with Flow(name="test_use_agent") as flow:
+    with Flow(name="test_use_agent", run_id="run1") as flow:
         person = generate_person(agent=flow.agent)
         doubled_age = double_age(person=person)
 
@@ -75,7 +75,7 @@ async def test_use_agent_logs_response() -> None:
     def logger(response: AgentResponse[GeneratedPerson]) -> None:
         logs.append(response.model_dump_json())
 
-    with Flow(name="test_use_agent", agent_logger=logger) as flow:
+    with Flow(name="test_use_agent", agent_logger=logger, run_id="run1") as flow:
         generate_person(agent=flow.agent)
 
     await flow.generate()
