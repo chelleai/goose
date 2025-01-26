@@ -177,11 +177,12 @@ class Flow:
         self,
         *,
         name: str,
+        run_id: str,
         agent_logger: Callable[[AgentResponse[Any]], None] | None = None,
     ) -> None:
         self.name = name
         self._nodes: list[Node[BaseModel]] = []
-        self._agent = Agent(flow_name=self.name, logger=agent_logger)
+        self._agent = Agent(flow_name=self.name, run_id=run_id, logger=agent_logger)
 
     @property
     def agent(self) -> Agent:

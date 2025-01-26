@@ -1,5 +1,4 @@
 import logging
-import uuid
 from datetime import datetime
 from typing import Any, Callable
 
@@ -20,9 +19,11 @@ class Agent:
         self,
         *,
         flow_name: str,
+        run_id: str,
         logger: Callable[[AgentResponse[Any]], None] | None = None,
     ) -> None:
         self.flow_name = flow_name
+        self.run_id = run_id
         self.logger = logger or logging.info
 
     async def __call__[R: BaseModel](
@@ -58,7 +59,7 @@ class Agent:
         end_time = datetime.now()
         agent_response = AgentResponse(
             response=parsed_response,
-            id=str(uuid.uuid4()),
+            id=self.run_id,
             flow_name=self.flow_name,
             task_name=task_name,
             model=model,
