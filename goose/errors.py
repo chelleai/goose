@@ -1,0 +1,2 @@
+class Honk(Exception):
+    pass

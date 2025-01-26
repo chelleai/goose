@@ -9,8 +9,8 @@ from graphlib import TopologicalSorter
 from pydantic import BaseModel
 
 from goose.agent import Agent
+from goose.errors import Honk
 from goose.conversation import Conversation, ConversationState
-from goose.regenerator import default_regenerator
 from goose.types import AgentResponse, UserMessage
 
 
@@ -41,7 +41,7 @@ class Task[**P, R: BaseModel]:
     ) -> None:
         self.retries = retries
         self._generator = generator
-        self._regenerator: IRegenerator[R] = default_regenerator
+        self._regenerator: IRegenerator[R] | None = None
         self._signature = inspect.signature(generator)
         self.__validate_fn()
 
@@ -49,7 +49,7 @@ class Task[**P, R: BaseModel]:
     def result_type(self) -> type[R]:
         return_type = self._generator.__annotations__.get("return")
         if return_type is None:
-            raise TypeError("Task must have a return type annotation")
+            raise Honk("Task must have a return type annotation")
 
         return return_type
 
@@ -65,6 +65,9 @@ class Task[**P, R: BaseModel]:
         return await self._generator(*args, **kwargs)
 
     async def regenerate(self, *, result: R, conversation: Conversation[R]) -> R:
+        if self._regenerator is None:
+            raise Honk("Task does not have a regenerator implemented")
+
         return await self._regenerator(result=result, conversation=conversation)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> "Node[R]":
@@ -76,7 +79,7 @@ class Task[**P, R: BaseModel]:
             param.kind == inspect.Parameter.POSITIONAL_ONLY
             for param in self._signature.parameters.values()
         ):
-            raise ValueError("Positional-only parameters are not supported in Tasks")
+            raise Honk("Positional-only parameters are not supported in Tasks")
 
 
 class Node[R: BaseModel]:
@@ -97,7 +100,7 @@ class Node[R: BaseModel]:
         self._result: R | NoResult = NoResult()
         current_flow = Flow.get_current()
         if current_flow is None:
-            raise RuntimeError("Cannot create a node without an active flow")
+            raise Honk("Cannot create a node without an active flow")
         self.id = current_flow.add_node(node=self)
 
     @property
@@ -107,7 +110,7 @@ class Node[R: BaseModel]:
     @property
     def result(self) -> R:
         if isinstance(self._result, NoResult):
-            raise RuntimeError("Cannot access result of a node before it has run")
+            raise Honk("Cannot access result of a node before it has run")
         return self._result
 
     async def generate(self) -> None:
@@ -192,9 +195,7 @@ class Flow:
         for node_state in flow_state.nodes:
             matching_node = nodes_by_name.get(node_state.name)
             if matching_node is None:
-                raise RuntimeError(
-                    f"Node {node_state.name} from state not found in flow"
-                )
+                raise Honk(f"Node {node_state.name} from state not found in flow")
 
             matching_node.load_state(state=node_state)
 
@@ -215,7 +216,7 @@ class Flow:
 
     async def regenerate(self, *, target: Node[Any], message: UserMessage) -> None:
         if not target.has_result:
-            raise RuntimeError("Cannot regenerate a node without a result")
+            raise Honk("Cannot regenerate a node without a result")
 
         await target.regenerate(message=message)
 
@@ -265,9 +266,7 @@ class Flow:
 
     def __enter__(self) -> Self:
         if self._current.get() is not None:
-            raise RuntimeError(
-                "Cannot enter a new flow while another flow is already active"
-            )
+            raise Honk("Cannot enter a new flow while another flow is already active")
         self._current.set(self)
         return self
 

@@ -14,11 +14,17 @@ class GeminiModel(StrEnum):
 
 
 class UserMediaContentType(StrEnum):
+    # images
     JPEG = "image/jpeg"
     PNG = "image/png"
     WEBP = "image/webp"
+
+    # audio
     MP3 = "audio/mpeg"
     WAV = "audio/wav"
+
+    # files
+    PDF = "application/pdf"
 
 
 class LLMTextMessagePart(TypedDict):
