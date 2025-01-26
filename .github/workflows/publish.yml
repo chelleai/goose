@@ -35,7 +35,7 @@ jobs:
         run: poetry install --all-extras
 
       - name: Run tests
-        run: poetry run pytest
+        run: poetry run pytest tests
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 

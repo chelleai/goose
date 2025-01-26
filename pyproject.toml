@@ -1,16 +1,16 @@
 [tool.poetry]
-name = "vers-py"
+name = "goose"
 version = "0.1.0"
-description = "A tool for YAML-based configuration of AI flows with multiple prompts producing structured outputs."
+description = "A tool for AI workflows based on human-computer collaboration and structured output."
 authors = [
     "Nash Taylor <nash@chelle.ai>",
     "Joshua Cook <joshua@chelle.ai>",
     "Michael Sankur <michael@chelle.ai>"
 ]
 readme = "README.md"
-homepage = "https://github.com/chelle-ai/vers"
-repository = "https://github.com/chelle-ai/vers"
-documentation = "https://github.com/chelle-ai/vers"
+homepage = "https://github.com/chelle-ai/goose"
+repository = "https://github.com/chelle-ai/goose"
+documentation = "https://github.com/chelle-ai/goose"
 keywords = ["ai", "yaml", "configuration", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 packages = [
-    { include = "vers" }
+    { include = "goose" }
 ]
 
 
@@ -29,7 +29,6 @@ python = "^3.12"
 
 jsonpath-ng = "^1.7.0"
 litellm = "^1.56.5"
-redis = "^5.2.1"
 pydantic = "^2.8.2"
 ipykernel = { version = "*", optional = true }
 pytest = { version = "<8", optional = true }
