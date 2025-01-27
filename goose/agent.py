@@ -5,7 +5,7 @@ from typing import Any, Callable
 from litellm import acompletion
 from pydantic import BaseModel
 
-from goose.types import (
+from goose.types.agent import (
     AgentResponse,
     AssistantMessage,
     GeminiModel,

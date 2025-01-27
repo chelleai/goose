@@ -29,6 +29,10 @@ class Conversation[R: BaseModel]:
 
         return self.results[-1]
 
+    @property
+    def state(self) -> ConversationState[R]:
+        return ConversationState(user_messages=self.user_messages, results=self.results)
+
     def add_message(self, *, message: UserMessage) -> None:
         self.user_messages.append(message)
 
@@ -40,6 +44,3 @@ class Conversation[R: BaseModel]:
             self.results.append(result)
         else:
             self.results[-1] = result
-
-    def dump(self) -> ConversationState[R]:
-        return ConversationState(user_messages=self.user_messages, results=self.results)

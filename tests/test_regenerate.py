@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from goose.conversation import Conversation
 from goose.core import Flow, Node, task
-from goose.types import TextMessagePart, UserMessage
+from goose.types.agent import TextMessagePart, UserMessage
 
 
 class GeneratedWord(BaseModel):

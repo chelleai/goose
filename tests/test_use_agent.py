@@ -6,7 +6,7 @@ from pytest_mock import MockerFixture
 
 from goose.agent import Agent
 from goose.core import Flow, Node, task
-from goose.types import AgentResponse, GeminiModel, TextMessagePart, UserMessage
+from goose.types.agent import AgentResponse, GeminiModel, TextMessagePart, UserMessage
 
 
 class Age(BaseModel):
