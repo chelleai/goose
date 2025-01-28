@@ -4,7 +4,14 @@ import pytest
 from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
-from goose.agent import Agent, GeminiModel, TextMessagePart, UserMessage
+from goose.agent import (
+    Agent,
+    AgentResponse,
+    GeminiModel,
+    IAgentLogger,
+    TextMessagePart,
+    UserMessage,
+)
 from goose.flow import Result, flow, task
 
 
@@ -54,6 +61,18 @@ async def agent_flow(*, agent: Agent) -> None:
     await use_agent(agent=agent)
 
 
+class CustomLogger(IAgentLogger):
+    logged_responses: list[AgentResponse[Greeting]] = []
+
+    async def __call__(self, *, response: AgentResponse[Greeting]) -> None:
+        self.logged_responses.append(response)
+
+
+@flow(agent_logger=CustomLogger())
+async def agent_flow_with_custom_logger(*, agent: Agent) -> None:
+    await use_agent(agent=agent)
+
+
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_litellm")
 async def test_agent() -> None:
@@ -61,3 +80,12 @@ async def test_agent() -> None:
         await agent_flow.generate(agent=run.agent)
 
     assert run.get(task=use_agent).result.greeting == "Hello"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_litellm")
+async def test_agent_custom_logger() -> None:
+    with agent_flow_with_custom_logger.start_run(run_id="1") as run:
+        await agent_flow_with_custom_logger.generate(agent=run.agent)
+
+    assert len(CustomLogger.logged_responses) == 1

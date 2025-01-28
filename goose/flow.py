@@ -14,7 +14,14 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from goose.agent import Agent, AssistantMessage, LLMMessage, SystemMessage, UserMessage
+from goose.agent import (
+    Agent,
+    AssistantMessage,
+    IAgentLogger,
+    LLMMessage,
+    SystemMessage,
+    UserMessage,
+)
 from goose.errors import Honk
 
 SerializedFlowRun = NewType("SerializedFlowRun", str)
@@ -174,11 +181,19 @@ class FlowRun:
                 last_input_hash=0,
             )
 
-    def start(self, *, flow_name: str, run_id: str) -> None:
+    def start(
+        self,
+        *,
+        flow_name: str,
+        run_id: str,
+        agent_logger: IAgentLogger | None = None,
+    ) -> None:
         self._last_requested_indices = {}
         self._flow_name = flow_name
         self._id = run_id
-        self._agent = Agent(flow_name=self.flow_name, run_id=self.id)
+        self._agent = Agent(
+            flow_name=self.flow_name, run_id=self.id, logger=agent_logger
+        )
 
     def end(self) -> None:
         self._last_requested_indices = {}
@@ -216,10 +231,16 @@ _current_flow_run: ContextVar[FlowRun | None] = ContextVar(
 
 class Flow[**P]:
     def __init__(
-        self, fn: Callable[P, Awaitable[None]], /, *, name: str | None = None
+        self,
+        fn: Callable[P, Awaitable[None]],
+        /,
+        *,
+        name: str | None = None,
+        agent_logger: IAgentLogger | None = None,
     ) -> None:
         self._fn = fn
         self._name = name
+        self._agent_logger = agent_logger
 
     @property
     def name(self) -> str:
@@ -244,7 +265,7 @@ class Flow[**P]:
         old_run = _current_flow_run.get()
         _current_flow_run.set(run)
 
-        run.start(flow_name=self.name, run_id=run_id)
+        run.start(flow_name=self.name, run_id=run_id, agent_logger=self._agent_logger)
         yield run
         run.end()
 
@@ -365,16 +386,20 @@ def task[**P, R: Result](
 def flow[**P](fn: Callable[P, Awaitable[None]], /) -> Flow[P]: ...
 @overload
 def flow[**P](
-    *, name: str | None = None
+    *, name: str | None = None, agent_logger: IAgentLogger | None = None
 ) -> Callable[[Callable[P, Awaitable[None]]], Flow[P]]: ...
 def flow[**P](
-    fn: Callable[P, Awaitable[None]] | None = None, /, *, name: str | None = None
+    fn: Callable[P, Awaitable[None]] | None = None,
+    /,
+    *,
+    name: str | None = None,
+    agent_logger: IAgentLogger | None = None,
 ) -> Flow[P] | Callable[[Callable[P, Awaitable[None]]], Flow[P]]:
     if fn is None:
 
         def decorator(fn: Callable[P, Awaitable[None]]) -> Flow[P]:
-            return Flow(fn, name=name)
+            return Flow(fn, name=name, agent_logger=agent_logger)
 
         return decorator
 
-    return Flow(fn, name=name)
+    return Flow(fn, name=name, agent_logger=agent_logger)

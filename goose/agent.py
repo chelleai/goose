@@ -2,7 +2,7 @@ import base64
 import logging
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Awaitable, Callable, ClassVar, Literal, NotRequired, TypedDict
+from typing import Any, ClassVar, Literal, NotRequired, Protocol, TypedDict
 
 from litellm import acompletion
 from pydantic import BaseModel, computed_field
@@ -144,13 +144,17 @@ class AgentResponse[R: BaseModel](BaseModel):
         return self.input_cost + self.output_cost
 
 
+class IAgentLogger(Protocol):
+    async def __call__(self, *, response: AgentResponse[Any]) -> None: ...
+
+
 class Agent:
     def __init__(
         self,
         *,
         flow_name: str,
         run_id: str,
-        logger: Callable[[AgentResponse[Any]], Awaitable[None]] | None = None,
+        logger: IAgentLogger | None = None,
     ) -> None:
         self.flow_name = flow_name
         self.run_id = run_id
@@ -202,7 +206,7 @@ class Agent:
         )
 
         if self.logger is not None:
-            await self.logger(agent_response)
+            await self.logger(response=agent_response)
         else:
             logging.info(agent_response.model_dump())
 
