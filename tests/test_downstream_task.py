@@ -3,7 +3,7 @@ import string
 
 import pytest
 
-from goose import Result, flow, task
+from goose.flow import Result, flow, task
 
 
 class GeneratedWord(Result):
@@ -34,9 +34,8 @@ async def downstream_task() -> None:
 
 @pytest.mark.asyncio
 async def test_downstream_task() -> None:
-    with downstream_task.run() as state:
+    with downstream_task.start_run(name="1") as run:
         await downstream_task.generate()
-        print("flow state", state.dump())
 
-    duplicated_word = state.get(task=duplicate_word)
+    duplicated_word = run.get(task=duplicate_word)
     assert len(duplicated_word.result.word) == 100

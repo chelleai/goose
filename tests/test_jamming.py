@@ -3,8 +3,8 @@ import string
 
 import pytest
 
-from goose import ConversationState, FlowState, Result, flow, task
-from goose.agent import TextMessagePart, UserMessage
+from goose.agent import SystemMessage, TextMessagePart, UserMessage
+from goose.flow import Conversation, FlowRun, Result, flow, task
 
 
 class GeneratedWord(Result):
@@ -23,9 +23,7 @@ async def generate_random_word(*, n_characters: int) -> GeneratedWord:
 
 
 @generate_random_word.adapter
-async def change_word(
-    *, conversation_state: ConversationState[GeneratedWord]
-) -> GeneratedWord:
+async def change_word(*, conversation: Conversation[GeneratedWord]) -> GeneratedWord:
     return GeneratedWord(word="__ADAPTED__")
 
 
@@ -41,34 +39,34 @@ async def sentence() -> None:
 
 
 @pytest.mark.asyncio
-async def test_adapting() -> None:
-    with sentence.run() as first_state:
+async def test_jamming() -> None:
+    with sentence.start_run(name="1") as first_run:
         await sentence.generate()
 
-    initial_random_words = first_state.get_all(task=generate_random_word)
+    initial_random_words = first_run.get_all(task=generate_random_word)
     assert len(initial_random_words) == 3
 
     # imagine this is a new process
-    second_state = FlowState.load(first_state.dump())
-    with sentence.run(state=second_state):
-        await generate_random_word.adapt(
-            flow_state=second_state,
+    second_run = FlowRun.load(first_run.dump())
+    with sentence.start_run(name="2", run=second_run):
+        await generate_random_word.jam(
             index=1,
             user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
+            context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),
         )
 
-    random_words = second_state.get_all(task=generate_random_word)
+    random_words = second_run.get_all(task=generate_random_word)
     assert len(random_words) == 3
     assert random_words[0].result.word != "__ADAPTED__"  # not adapted
     assert random_words[1].result.word == "__ADAPTED__"  # adapted
     assert random_words[2].result.word != "__ADAPTED__"  # not adapted
 
     # imagine this is a new process
-    third_state = FlowState.load(second_state.dump())
-    with sentence.run(state=third_state):
+    third_run = FlowRun.load(second_run.dump())
+    with sentence.start_run(name="3", run=third_run):
         await sentence.generate()
 
-    resulting_sentence = third_state.get(task=make_sentence)
+    resulting_sentence = third_run.get(task=make_sentence)
     assert (
         resulting_sentence.result.sentence
         == f"{initial_random_words[0].result.word} __ADAPTED__ {initial_random_words[2].result.word}"

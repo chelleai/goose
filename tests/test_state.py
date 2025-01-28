@@ -3,8 +3,8 @@ import string
 
 import pytest
 
-from goose import FlowState, Result, flow, task
 from goose.errors import Honk
+from goose.flow import FlowRun, Result, flow, task
 
 
 class GeneratedWord(Result):
@@ -35,18 +35,18 @@ async def with_state() -> None:
 
 @pytest.mark.asyncio
 async def test_state_causes_caching() -> None:
-    with with_state.run() as state:
+    with with_state.start_run(name="1") as run:
         await with_state.generate()
 
-    random_word = state.get(task=generate_random_word).result.word
+    random_word = run.get(task=generate_random_word).result.word
 
     with pytest.raises(Honk):
-        with_state.state
+        with_state.current_run
 
-    loaded_state = FlowState.load(state.dump())
-    with with_state.run(state=loaded_state) as new_state:
+    loaded_run = FlowRun.load(run.dump())
+    with with_state.start_run(name="2", run=loaded_run) as new_run:
         await with_state.generate()
 
-    new_random_word = new_state.get(task=generate_random_word).result.word
+    new_random_word = new_run.get(task=generate_random_word).result.word
 
     assert random_word == new_random_word  # unchanged node is not re-generated

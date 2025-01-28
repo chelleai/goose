@@ -1,6 +1,6 @@
 import pytest
 
-from goose import Result, flow, task
+from goose.flow import Result, flow, task
 
 
 class CourseObjective(Result):
@@ -58,10 +58,10 @@ async def course_content() -> None:
 
 @pytest.mark.asyncio
 async def test_generate_course_content() -> None:
-    with course_content.run() as state:
+    with course_content.start_run(name="1") as run:
         await course_content.generate()
 
-    quiz_questions = state.get_all(task=quiz_question)
+    quiz_questions = run.get_all(task=quiz_question)
     assert quiz_questions[0].result.question == "What is the meaning of Learn Python?"
     assert quiz_questions[0].result.answer == "Learn Python"
     assert len(quiz_questions) == 3

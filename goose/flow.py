@@ -14,10 +14,10 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from goose.agent import UserMessage
+from goose.agent import Agent, AssistantMessage, LLMMessage, SystemMessage, UserMessage
 from goose.errors import Honk
 
-SerializedFlowState = NewType("SerializedFlowState", str)
+SerializedFlowRun = NewType("SerializedFlowRun", str)
 
 
 class Result(BaseModel):
@@ -28,8 +28,9 @@ class GooseResponse[R: Result](BaseModel):
     result: R
 
 
-class ConversationState[R: Result](BaseModel):
+class Conversation[R: Result](BaseModel):
     messages: list[UserMessage | GooseResponse[R]]
+    context: SystemMessage | None = None
 
     @field_validator("messages")
     def alternates_starting_with_result(
@@ -56,27 +57,43 @@ class ConversationState[R: Result](BaseModel):
     def awaiting_response(self) -> bool:
         return len(self.messages) % 2 == 0
 
+    def render(self) -> list[LLMMessage]:
+        messages: list[LLMMessage] = []
+        if self.context is not None:
+            messages.append(self.context.render())
+
+        for message in self.messages:
+            if isinstance(message, UserMessage):
+                messages.append(message.render())
+            else:
+                messages.append(
+                    AssistantMessage(text=message.result.model_dump_json()).render()
+                )
+
+        return messages
+
 
 class IAdapter[ResultT: Result](Protocol):
-    async def __call__(
-        self, *, conversation_state: ConversationState[ResultT]
-    ) -> ResultT: ...
+    async def __call__(self, *, conversation: Conversation[ResultT]) -> ResultT: ...
 
 
 class NodeState[ResultT: Result](BaseModel):
     task_name: str
     index: int
-    conversation_state: ConversationState[ResultT]
+    conversation: Conversation[ResultT]
     last_input_hash: int
-    pinned: bool
 
     @property
     def result(self) -> ResultT:
-        last_message = self.conversation_state.messages[-1]
+        last_message = self.conversation.messages[-1]
         if isinstance(last_message, GooseResponse):
             return last_message.result
         else:
             raise Honk("Node awaiting response, has no result")
+
+    def set_context(self, *, context: SystemMessage) -> Self:
+        self.conversation.context = context
+        return self
 
     def add_result(
         self,
@@ -86,33 +103,37 @@ class NodeState[ResultT: Result](BaseModel):
         overwrite: bool = False,
     ) -> Self:
         if overwrite:
-            if len(self.conversation_state.messages) == 0:
-                self.conversation_state.messages.append(GooseResponse(result=result))
+            if len(self.conversation.messages) == 0:
+                self.conversation.messages.append(GooseResponse(result=result))
             else:
-                self.conversation_state.messages[-1] = GooseResponse(result=result)
+                self.conversation.messages[-1] = GooseResponse(result=result)
         else:
-            self.conversation_state.messages.append(GooseResponse(result=result))
+            self.conversation.messages.append(GooseResponse(result=result))
         if new_input_hash is not None:
             self.last_input_hash = new_input_hash
         return self
 
     def add_user_message(self, *, message: UserMessage) -> Self:
-        self.conversation_state.messages.append(message)
-        return self
-
-    def pin(self) -> Self:
-        self.pinned = True
-        return self
-
-    def unpin(self) -> Self:
-        self.pinned = False
+        self.conversation.messages.append(message)
         return self
 
 
-class FlowState:
+class FlowRun:
     def __init__(self) -> None:
         self._node_states: dict[tuple[str, int], str] = {}
         self._last_requested_indices: dict[str, int] = {}
+        self._name = ""
+        self._agent: Agent | None = None
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def agent(self) -> Agent:
+        if self._agent is None:
+            raise Honk("Agent is only accessible once a run is started")
+        return self._agent
 
     def add(self, node_state: NodeState[Any], /) -> None:
         key = (node_state.task_name, node_state.index)
@@ -144,19 +165,22 @@ class FlowState:
             return NodeState[task.result_type](
                 task_name=task.name,
                 index=index or 0,
-                conversation_state=ConversationState[task.result_type](messages=[]),
+                conversation=Conversation[task.result_type](messages=[]),
                 last_input_hash=0,
-                pinned=False,
             )
 
-    @contextmanager
-    def run(self) -> Iterator[Self]:
+    def start(self, *, name: str) -> None:
         self._last_requested_indices = {}
-        yield self
-        self._last_requested_indices = {}
+        self._name = name
+        self._agent = Agent(flow_name=self.name, run_name=name)
 
-    def dump(self) -> SerializedFlowState:
-        return SerializedFlowState(
+    def end(self) -> None:
+        self._last_requested_indices = {}
+        self._name = ""
+        self._agent = None
+
+    def dump(self) -> SerializedFlowRun:
+        return SerializedFlowRun(
             json.dumps(
                 {
                     ":".join([task_name, str(index)]): value
@@ -166,20 +190,20 @@ class FlowState:
         )
 
     @classmethod
-    def load(cls, state: SerializedFlowState) -> Self:
-        flow_state = cls()
-        raw_node_states = json.loads(state)
+    def load(cls, run: SerializedFlowRun, /) -> Self:
+        flow_run = cls()
+        raw_node_states = json.loads(run)
         new_node_states: dict[tuple[str, int], str] = {}
         for key, node_state in raw_node_states.items():
             task_name, index = tuple(key.split(":"))
             new_node_states[(task_name, int(index))] = node_state
 
-        flow_state._node_states = new_node_states
-        return flow_state
+        flow_run._node_states = new_node_states
+        return flow_run
 
 
-_current_flow_state: ContextVar[FlowState | None] = ContextVar(
-    "current_flow_state", default=None
+_current_flow_run: ContextVar[FlowRun | None] = ContextVar(
+    "current_flow_run", default=None
 )
 
 
@@ -195,25 +219,28 @@ class Flow[**P]:
         return self._name or self._fn.__name__
 
     @property
-    def state(self) -> FlowState:
-        state = _current_flow_state.get()
-        if state is None:
-            raise Honk("No current flow state")
-        return state
+    def current_run(self) -> FlowRun:
+        run = _current_flow_run.get()
+        if run is None:
+            raise Honk("No current flow run")
+        return run
 
     @contextmanager
-    def run(self, *, state: FlowState | None = None) -> Iterator[FlowState]:
-        if state is None:
-            state = FlowState()
+    def start_run(self, *, name: str, run: FlowRun | None = None) -> Iterator[FlowRun]:
+        if run is None:
+            run = FlowRun()
 
-        old_state = _current_flow_state.get()
-        _current_flow_state.set(state)
-        yield state
-        _current_flow_state.set(old_state)
+        old_run = _current_flow_run.get()
+        _current_flow_run.set(run)
+
+        run.start(name=name)
+        yield run
+        run.end()
+
+        _current_flow_run.set(old_run)
 
     async def generate(self, *args: P.args, **kwargs: P.kwargs) -> None:
-        with self.state.run():
-            await self._fn(*args, **kwargs)
+        await self._fn(*args, **kwargs)
 
 
 class Task[**P, R: Result]:
@@ -252,31 +279,39 @@ class Task[**P, R: Result]:
             state.add_result(result=result, new_input_hash=input_hash, overwrite=True)
             return result
         else:
-            if not isinstance(state.conversation_state.messages[-1], GooseResponse):
+            if not isinstance(state.conversation.messages[-1], GooseResponse):
                 raise Honk(
                     "Conversation must alternate between User and Result messages"
                 )
             return state.result
 
-    async def adapt(
-        self, *, flow_state: FlowState, user_message: UserMessage, index: int = 0
+    async def jam(
+        self,
+        *,
+        user_message: UserMessage,
+        context: SystemMessage | None = None,
+        index: int = 0,
     ) -> R:
-        node_state = flow_state.get(task=self, index=index)
+        flow_run = self.__get_current_flow_run()
+        node_state = flow_run.get(task=self, index=index)
         if self._adapter is None:
             raise Honk("No adapter provided for Task")
 
+        if context is not None:
+            node_state.set_context(context=context)
         node_state.add_user_message(message=user_message)
-        result = await self._adapter(conversation_state=node_state.conversation_state)
+
+        result = await self._adapter(conversation=node_state.conversation)
         node_state.add_result(result=result)
-        flow_state.add(node_state)
+        flow_run.add(node_state)
 
         return result
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
-        flow_state = self.__get_current_flow_state()
-        node_state = flow_state.get_next(task=self)
+        flow_run = self.__get_current_flow_run()
+        node_state = flow_run.get_next(task=self)
         result = await self.generate(node_state, *args, **kwargs)
-        flow_state.add(node_state)
+        flow_run.add(node_state)
         return result
 
     def __hash_input(self, *args: P.args, **kwargs: P.kwargs) -> int:
@@ -286,11 +321,11 @@ class Task[**P, R: Result]:
         except TypeError:
             raise Honk(f"Unhashable argument to task {self.name}: {args} {kwargs}")
 
-    def __get_current_flow_state(self) -> FlowState:
-        state = _current_flow_state.get()
-        if state is None:
-            raise Honk("No current flow state")
-        return state
+    def __get_current_flow_run(self) -> FlowRun:
+        run = _current_flow_run.get()
+        if run is None:
+            raise Honk("No current flow run")
+        return run
 
 
 @overload

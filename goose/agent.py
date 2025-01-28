@@ -88,10 +88,13 @@ class AssistantMessage(BaseModel):
 
 
 class SystemMessage(BaseModel):
-    text: str
+    parts: list[TextMessagePart | MediaMessagePart]
 
     def render(self) -> LLMMessage:
-        return {"role": "system", "content": [{"type": "text", "text": self.text}]}
+        return {
+            "role": "system",
+            "content": [part.render() for part in self.parts],
+        }
 
 
 class AgentResponse[R: BaseModel](BaseModel):
@@ -109,7 +112,7 @@ class AgentResponse[R: BaseModel](BaseModel):
     }
 
     response: R
-    id: str
+    run_name: str
     flow_name: str
     task_name: str
     model: GeminiModel
@@ -146,11 +149,11 @@ class Agent:
         self,
         *,
         flow_name: str,
-        run_id: str,
+        run_name: str,
         logger: Callable[[AgentResponse[Any]], Awaitable[None]] | None = None,
     ) -> None:
         self.flow_name = flow_name
-        self.run_id = run_id
+        self.run_name = run_name
         self.logger = logger
 
     async def __call__[R: BaseModel](
@@ -186,7 +189,7 @@ class Agent:
         end_time = datetime.now()
         agent_response = AgentResponse(
             response=parsed_response,
-            id=self.run_id,
+            run_name=self.run_name,
             flow_name=self.flow_name,
             task_name=task_name,
             model=model,
