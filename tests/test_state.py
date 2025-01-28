@@ -1,66 +1,52 @@
+import random
+import string
+
 import pytest
-from pydantic import BaseModel
 
-from goose.conversation import Conversation, ConversationState
-from goose.core import Flow, FlowState, NodeState, task
-from goose.types.agent import TextMessagePart, UserMessage
+from goose import FlowState, Result, flow, task
+from goose.errors import Honk
 
 
-class GeneratedWord(BaseModel):
+class GeneratedWord(Result):
     word: str
 
 
+class GeneratedSentence(Result):
+    sentence: str
+
+
 @task
-async def generate_word() -> GeneratedWord:
-    return GeneratedWord(word="the")
+async def generate_random_word(*, n_characters: int) -> GeneratedWord:
+    return GeneratedWord(
+        word="".join(random.sample(string.ascii_lowercase, n_characters))
+    )
 
 
-@generate_word.regenerator
-async def regenerate_word(
-    *, result: GeneratedWord, conversation: Conversation[GeneratedWord]
-) -> GeneratedWord:
-    return GeneratedWord(word="longer")
+@task
+async def make_sentence(*, words: list[GeneratedWord]) -> GeneratedSentence:
+    return GeneratedSentence(sentence=" ".join([word.word for word in words]))
+
+
+@flow
+async def with_state() -> None:
+    word = await generate_random_word(n_characters=10)
+    await make_sentence(words=[word])
 
 
 @pytest.mark.asyncio
-async def test_dump_state() -> None:
-    with Flow(name="test", run_id="run1") as flow:
-        generate_word()
+async def test_state_causes_caching() -> None:
+    with with_state.run() as state:
+        await with_state.generate()
 
-    await flow.generate()
+    random_word = state.get(task=generate_random_word).result.word
 
-    flow_state = flow.dump_state()
-    assert len(flow_state.nodes) == 1
-    assert flow_state.nodes[0].conversation.results == [GeneratedWord(word="the")]
+    with pytest.raises(Honk):
+        with_state.state
 
+    loaded_state = FlowState.load(state.dump())
+    with with_state.run(state=loaded_state) as new_state:
+        await with_state.generate()
 
-@pytest.mark.asyncio
-async def test_load_from_state():
-    flow_state = FlowState(
-        nodes=[
-            NodeState(
-                name="generate_word",
-                conversation=ConversationState(
-                    user_messages=[
-                        UserMessage(parts=[TextMessagePart(text="longer")]),
-                    ],
-                    results=[GeneratedWord(word="a"), GeneratedWord(word="it")],
-                ),
-            )
-        ]
-    )
+    new_random_word = new_state.get(task=generate_random_word).result.word
 
-    with Flow(name="test", run_id="run1") as flow:
-        word = generate_word()
-
-    flow.load_state(flow_state=flow_state)
-
-    assert len(word.conversation.results) == 2
-    assert word.result.word == "it"
-
-    await flow.regenerate(
-        target=word, message=UserMessage(parts=[TextMessagePart(text="longer")])
-    )
-
-    assert word.result.word == "longer"
-    assert len(word.conversation.results) == 3
+    assert random_word == new_random_word  # unchanged node is not re-generated
