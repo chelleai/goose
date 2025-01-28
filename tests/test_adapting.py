@@ -42,19 +42,34 @@ async def sentence() -> None:
 
 @pytest.mark.asyncio
 async def test_adapting() -> None:
-    with sentence.run() as state:
+    with sentence.run() as first_state:
         await sentence.generate()
 
-    loaded_state = FlowState.load(state.dump())
-    with sentence.run(state=loaded_state) as new_state:
+    initial_random_words = first_state.get_all(task=generate_random_word)
+    assert len(initial_random_words) == 3
+
+    # imagine this is a new process
+    second_state = FlowState.load(first_state.dump())
+    with sentence.run(state=second_state):
         await generate_random_word.adapt(
-            flow_state=new_state,
+            flow_state=second_state,
             index=1,
             user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
         )
 
-    random_words = new_state.get_all(task=generate_random_word)
+    random_words = second_state.get_all(task=generate_random_word)
     assert len(random_words) == 3
-    assert random_words[0].result.word != "__ADAPTED__"
-    assert random_words[1].result.word == "__ADAPTED__"
-    assert random_words[2].result.word != "__ADAPTED__"
+    assert random_words[0].result.word != "__ADAPTED__"  # not adapted
+    assert random_words[1].result.word == "__ADAPTED__"  # adapted
+    assert random_words[2].result.word != "__ADAPTED__"  # not adapted
+
+    # imagine this is a new process
+    third_state = FlowState.load(second_state.dump())
+    with sentence.run(state=third_state):
+        await sentence.generate()
+
+    resulting_sentence = third_state.get(task=make_sentence)
+    assert (
+        resulting_sentence.result.sentence
+        == f"{initial_random_words[0].result.word} __ADAPTED__ {initial_random_words[2].result.word}"
+    )
