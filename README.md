@@ -2,5 +2,4 @@
 
 ... talk to me, Goose ...
 
-![image](https://github.com/user-attachments/assets/3db5e7b9-74ed-4270-8b32-682a8b41f81e)
-
+![goose](https://github.com/user-attachments/assets/993b62e7-f01e-488a-b4c4-e0882348408d)
