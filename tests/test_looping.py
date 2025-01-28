@@ -58,7 +58,7 @@ async def course_content() -> None:
 
 @pytest.mark.asyncio
 async def test_generate_course_content() -> None:
-    with course_content.start_run(name="1") as run:
+    with course_content.start_run(run_id="1") as run:
         await course_content.generate()
 
     quiz_questions = run.get_all(task=quiz_question)

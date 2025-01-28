@@ -112,7 +112,7 @@ class AgentResponse[R: BaseModel](BaseModel):
     }
 
     response: R
-    run_name: str
+    run_id: str
     flow_name: str
     task_name: str
     model: GeminiModel
@@ -149,11 +149,11 @@ class Agent:
         self,
         *,
         flow_name: str,
-        run_name: str,
+        run_id: str,
         logger: Callable[[AgentResponse[Any]], Awaitable[None]] | None = None,
     ) -> None:
         self.flow_name = flow_name
-        self.run_name = run_name
+        self.run_id = run_id
         self.logger = logger
 
     async def __call__[R: BaseModel](
@@ -189,7 +189,7 @@ class Agent:
         end_time = datetime.now()
         agent_response = AgentResponse(
             response=parsed_response,
-            run_name=self.run_name,
+            run_id=self.run_id,
             flow_name=self.flow_name,
             task_name=task_name,
             model=model,

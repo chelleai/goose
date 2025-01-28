@@ -122,12 +122,17 @@ class FlowRun:
     def __init__(self) -> None:
         self._node_states: dict[tuple[str, int], str] = {}
         self._last_requested_indices: dict[str, int] = {}
-        self._name = ""
+        self._flow_name = ""
+        self._id = ""
         self._agent: Agent | None = None
 
     @property
-    def name(self) -> str:
-        return self._name
+    def flow_name(self) -> str:
+        return self._flow_name
+
+    @property
+    def id(self) -> str:
+        return self._id
 
     @property
     def agent(self) -> Agent:
@@ -169,14 +174,16 @@ class FlowRun:
                 last_input_hash=0,
             )
 
-    def start(self, *, name: str) -> None:
+    def start(self, *, flow_name: str, run_id: str) -> None:
         self._last_requested_indices = {}
-        self._name = name
-        self._agent = Agent(flow_name=self.name, run_name=name)
+        self._flow_name = flow_name
+        self._id = run_id
+        self._agent = Agent(flow_name=self.flow_name, run_id=self.id)
 
     def end(self) -> None:
         self._last_requested_indices = {}
-        self._name = ""
+        self._flow_name = ""
+        self._id = ""
         self._agent = None
 
     def dump(self) -> SerializedFlowRun:
@@ -226,14 +233,18 @@ class Flow[**P]:
         return run
 
     @contextmanager
-    def start_run(self, *, name: str, run: FlowRun | None = None) -> Iterator[FlowRun]:
-        if run is None:
+    def start_run(
+        self, *, run_id: str, preload: FlowRun | None = None
+    ) -> Iterator[FlowRun]:
+        if preload is None:
             run = FlowRun()
+        else:
+            run = preload
 
         old_run = _current_flow_run.get()
         _current_flow_run.set(run)
 
-        run.start(name=name)
+        run.start(flow_name=self.name, run_id=run_id)
         yield run
         run.end()
 

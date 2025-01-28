@@ -57,7 +57,7 @@ async def agent_flow(*, agent: Agent) -> None:
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_litellm")
 async def test_agent() -> None:
-    with agent_flow.start_run(name="1") as run:
+    with agent_flow.start_run(run_id="1") as run:
         await agent_flow.generate(agent=run.agent)
 
     assert run.get(task=use_agent).result.greeting == "Hello"

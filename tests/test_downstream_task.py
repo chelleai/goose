@@ -34,7 +34,7 @@ async def downstream_task() -> None:
 
 @pytest.mark.asyncio
 async def test_downstream_task() -> None:
-    with downstream_task.start_run(name="1") as run:
+    with downstream_task.start_run(run_id="1") as run:
         await downstream_task.generate()
 
     duplicated_word = run.get(task=duplicate_word)
