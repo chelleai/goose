@@ -236,8 +236,8 @@ class Flow[**P]:
         fn: Callable[P, Awaitable[None]],
         /,
         *,
-        store: IFlowRunStore | None = None,
         name: str | None = None,
+        store: IFlowRunStore | None = None,
         agent_logger: IAgentLogger | None = None,
     ) -> None:
         self._fn = fn
@@ -389,20 +389,24 @@ def task[**P, R: Result](
 def flow[**P](fn: Callable[P, Awaitable[None]], /) -> Flow[P]: ...
 @overload
 def flow[**P](
-    *, name: str | None = None, agent_logger: IAgentLogger | None = None
+    *,
+    name: str | None = None,
+    store: IFlowRunStore | None = None,
+    agent_logger: IAgentLogger | None = None,
 ) -> Callable[[Callable[P, Awaitable[None]]], Flow[P]]: ...
 def flow[**P](
     fn: Callable[P, Awaitable[None]] | None = None,
     /,
     *,
     name: str | None = None,
+    store: IFlowRunStore | None = None,
     agent_logger: IAgentLogger | None = None,
 ) -> Flow[P] | Callable[[Callable[P, Awaitable[None]]], Flow[P]]:
     if fn is None:
 
         def decorator(fn: Callable[P, Awaitable[None]]) -> Flow[P]:
-            return Flow(fn, name=name, agent_logger=agent_logger)
+            return Flow(fn, name=name, store=store, agent_logger=agent_logger)
 
         return decorator
 
-    return Flow(fn, name=name, agent_logger=agent_logger)
+    return Flow(fn, name=name, store=store, agent_logger=agent_logger)
