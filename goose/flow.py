@@ -149,7 +149,7 @@ class FlowRun:
                 matching_nodes.append(
                     NodeState[task.result_type].model_validate_json(node_state)
                 )
-        return matching_nodes
+        return sorted(matching_nodes, key=lambda node: node.index)
 
     def get[R: Result](self, *, task: "Task[Any, R]", index: int = 0) -> NodeState[R]:
         if (
