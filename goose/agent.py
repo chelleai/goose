@@ -166,25 +166,26 @@ class AgentResponse[R: BaseModel](BaseModel):
         if self.system is None:
             minimized_system_message = ""
         else:
-            minimized_system_message = self.system.model_dump()
-            for part in minimized_system_message["parts"]:
+            minimized_system_message = self.system.render()
+            for part in minimized_system_message["content"]:
                 if part["type"] == "image_url":
-                    part["content"] = b"__MEDIA__"
+                    part["image_url"] = "__MEDIA__"
+            minimized_system_message = json.dumps(minimized_system_message)
 
-        minimized_input_messages = [
-            message.model_dump() for message in self.input_messages
-        ]
+        minimized_input_messages = [message.render() for message in self.input_messages]
         for message in minimized_input_messages:
-            if message["type"] == "image_url":
-                message["content"] = b"__MEDIA__"
+            for part in message["content"]:
+                if part["type"] == "image_url":
+                    part["image_url"] = "__MEDIA__"
+        minimized_input_messages = json.dumps(minimized_input_messages)
 
         return {
             "run_id": self.run_id,
             "flow_name": self.flow_name,
             "task_name": self.task_name,
             "model": self.model.value,
-            "system_message": json.dumps(minimized_system_message),
-            "input_messages": json.dumps(minimized_input_messages),
+            "system_message": minimized_system_message,
+            "input_messages": minimized_input_messages,
             "output_message": self.response.model_dump_json(),
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
