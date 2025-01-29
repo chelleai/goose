@@ -4,7 +4,7 @@ import string
 import pytest
 
 from goose.errors import Honk
-from goose.flow import FlowRun, Result, flow, task
+from goose.flow import Result, flow, task
 
 
 class GeneratedWord(Result):
@@ -35,7 +35,7 @@ async def with_state() -> None:
 
 @pytest.mark.asyncio
 async def test_state_causes_caching() -> None:
-    with with_state.start_run(run_id="1") as run:
+    async with with_state.start_run(run_id="1") as run:
         await with_state.generate()
 
     random_word = run.get(task=generate_random_word).result.word
@@ -43,8 +43,7 @@ async def test_state_causes_caching() -> None:
     with pytest.raises(Honk):
         with_state.current_run
 
-    loaded_run = FlowRun.load(run.dump())
-    with with_state.start_run(run_id="2", preload=loaded_run) as new_run:
+    async with with_state.start_run(run_id="1") as new_run:
         await with_state.generate()
 
     new_random_word = new_run.get(task=generate_random_word).result.word

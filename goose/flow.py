@@ -1,11 +1,11 @@
 import json
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
-    Iterator,
     NewType,
     Protocol,
     Self,
@@ -23,6 +23,7 @@ from goose.agent import (
     UserMessage,
 )
 from goose.errors import Honk
+from goose.store import IFlowRunStore, InMemoryFlowRunStore
 
 SerializedFlowRun = NewType("SerializedFlowRun", str)
 
@@ -235,12 +236,14 @@ class Flow[**P]:
         fn: Callable[P, Awaitable[None]],
         /,
         *,
+        store: IFlowRunStore | None = None,
         name: str | None = None,
         agent_logger: IAgentLogger | None = None,
     ) -> None:
         self._fn = fn
         self._name = name
         self._agent_logger = agent_logger
+        self._store = store or InMemoryFlowRunStore(flow_name=self.name)
 
     @property
     def name(self) -> str:
@@ -253,20 +256,20 @@ class Flow[**P]:
             raise Honk("No current flow run")
         return run
 
-    @contextmanager
-    def start_run(
-        self, *, run_id: str, preload: FlowRun | None = None
-    ) -> Iterator[FlowRun]:
-        if preload is None:
+    @asynccontextmanager
+    async def start_run(self, *, run_id: str) -> AsyncIterator[FlowRun]:
+        existing_run = await self._store.get(run_id=run_id)
+        if existing_run is None:
             run = FlowRun()
         else:
-            run = preload
+            run = existing_run
 
         old_run = _current_flow_run.get()
         _current_flow_run.set(run)
 
         run.start(flow_name=self.name, run_id=run_id, agent_logger=self._agent_logger)
         yield run
+        await self._store.save(run=run)
         run.end()
 
         _current_flow_run.set(old_run)

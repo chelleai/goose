@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 from datetime import datetime
 from enum import StrEnum
@@ -97,6 +98,24 @@ class SystemMessage(BaseModel):
         }
 
 
+class AgentResponseDump(TypedDict):
+    run_id: str
+    flow_name: str
+    task_name: str
+    model: str
+    system_message: str
+    input_messages: str
+    output_message: str
+    input_cost: float
+    output_cost: float
+    total_cost: float
+    input_tokens: int
+    output_tokens: int
+    start_time: datetime
+    end_time: datetime
+    duration_ms: int
+
+
 class AgentResponse[R: BaseModel](BaseModel):
     INPUT_CENTS_PER_MILLION_TOKENS: ClassVar[dict[GeminiModel, float]] = {
         GeminiModel.FLASH_8B: 30,
@@ -142,6 +161,40 @@ class AgentResponse[R: BaseModel](BaseModel):
     @property
     def total_cost(self) -> float:
         return self.input_cost + self.output_cost
+
+    def minimized_dump(self) -> AgentResponseDump:
+        if self.system is None:
+            minimized_system_message = ""
+        else:
+            minimized_system_message = self.system.model_dump()
+            for part in minimized_system_message["parts"]:
+                if part["type"] == "image_url":
+                    part["content"] = b"__MEDIA__"
+
+        minimized_input_messages = [
+            message.model_dump() for message in self.input_messages
+        ]
+        for message in minimized_input_messages:
+            if message["type"] == "image_url":
+                message["content"] = b"__MEDIA__"
+
+        return {
+            "run_id": self.run_id,
+            "flow_name": self.flow_name,
+            "task_name": self.task_name,
+            "model": self.model.value,
+            "system_message": json.dumps(minimized_system_message),
+            "input_messages": json.dumps(minimized_input_messages),
+            "output_message": self.response.model_dump_json(),
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "input_cost": self.input_cost,
+            "output_cost": self.output_cost,
+            "total_cost": self.total_cost,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "duration_ms": self.duration_ms,
+        }
 
 
 class IAgentLogger(Protocol):

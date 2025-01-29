@@ -76,7 +76,7 @@ async def agent_flow_with_custom_logger(*, agent: Agent) -> None:
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_litellm")
 async def test_agent() -> None:
-    with agent_flow.start_run(run_id="1") as run:
+    async with agent_flow.start_run(run_id="1") as run:
         await agent_flow.generate(agent=run.agent)
 
     assert run.get(task=use_agent).result.greeting == "Hello"
@@ -85,7 +85,7 @@ async def test_agent() -> None:
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_litellm")
 async def test_agent_custom_logger() -> None:
-    with agent_flow_with_custom_logger.start_run(run_id="1") as run:
+    async with agent_flow_with_custom_logger.start_run(run_id="1") as run:
         await agent_flow_with_custom_logger.generate(agent=run.agent)
 
     assert len(CustomLogger.logged_responses) == 1

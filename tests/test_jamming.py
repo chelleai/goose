@@ -4,7 +4,7 @@ import string
 import pytest
 
 from goose.agent import SystemMessage, TextMessagePart, UserMessage
-from goose.flow import Conversation, FlowRun, Result, flow, task
+from goose.flow import Conversation, Result, flow, task
 
 
 class GeneratedWord(Result):
@@ -40,15 +40,14 @@ async def sentence() -> None:
 
 @pytest.mark.asyncio
 async def test_jamming() -> None:
-    with sentence.start_run(run_id="1") as first_run:
+    async with sentence.start_run(run_id="1") as first_run:
         await sentence.generate()
 
     initial_random_words = first_run.get_all(task=generate_random_word)
     assert len(initial_random_words) == 3
 
     # imagine this is a new process
-    second_run = FlowRun.load(first_run.dump())
-    with sentence.start_run(run_id="2", preload=second_run):
+    async with sentence.start_run(run_id="1") as second_run:
         await generate_random_word.jam(
             index=1,
             user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
@@ -62,8 +61,7 @@ async def test_jamming() -> None:
     assert random_words[2].result.word != "__ADAPTED__"  # not adapted
 
     # imagine this is a new process
-    third_run = FlowRun.load(second_run.dump())
-    with sentence.start_run(run_id="3", preload=third_run):
+    async with sentence.start_run(run_id="1") as third_run:
         await sentence.generate()
 
     resulting_sentence = third_run.get(task=make_sentence)
