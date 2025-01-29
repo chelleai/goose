@@ -150,12 +150,20 @@ class AgentResponse[R: BaseModel](BaseModel):
     @computed_field
     @property
     def input_cost(self) -> float:
-        return self.INPUT_CENTS_PER_MILLION_TOKENS[self.model] * self.input_tokens
+        return (
+            self.INPUT_CENTS_PER_MILLION_TOKENS[self.model]
+            * self.input_tokens
+            / 1_000_000
+        )
 
     @computed_field
     @property
     def output_cost(self) -> float:
-        return self.OUTPUT_CENTS_PER_MILLION_TOKENS[self.model] * self.output_tokens
+        return (
+            self.OUTPUT_CENTS_PER_MILLION_TOKENS[self.model]
+            * self.output_tokens
+            / 1_000_000
+        )
 
     @computed_field
     @property
