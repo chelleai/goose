@@ -104,7 +104,7 @@ class AgentResponseDump(TypedDict):
     task_name: str
     model: str
     system_message: str
-    input_messages: str
+    input_messages: list[str]
     output_message: str
     input_cost: float
     output_cost: float
@@ -177,7 +177,9 @@ class AgentResponse[R: BaseModel](BaseModel):
             for part in message["content"]:
                 if part["type"] == "image_url":
                     part["image_url"] = "__MEDIA__"
-        minimized_input_messages = json.dumps(minimized_input_messages)
+        minimized_input_messages = [
+            json.dumps(message) for message in minimized_input_messages
+        ]
 
         return {
             "run_id": self.run_id,
