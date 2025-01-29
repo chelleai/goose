@@ -1,6 +1,7 @@
 import json
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from types import CodeType
 from typing import (
     Any,
     AsyncIterator,
@@ -65,6 +66,8 @@ class Conversation[R: Result](BaseModel):
 
 
 class IAdapter[ResultT: Result](Protocol):
+    __code__: CodeType
+
     async def __call__(self, *, conversation: Conversation[ResultT]) -> ResultT: ...
 
 
@@ -72,7 +75,7 @@ class NodeState[ResultT: Result](BaseModel):
     task_name: str
     index: int
     conversation: Conversation[ResultT]
-    last_input_hash: int
+    last_hash: int
 
     @property
     def result(self) -> ResultT:
@@ -89,15 +92,15 @@ class NodeState[ResultT: Result](BaseModel):
         self,
         *,
         result: ResultT,
-        new_input_hash: int | None = None,
+        new_hash: int | None = None,
         overwrite: bool = False,
     ) -> Self:
         if overwrite and len(self.conversation.result_messages) > 0:
             self.conversation.result_messages[-1] = result
         else:
             self.conversation.result_messages.append(result)
-        if new_input_hash is not None:
-            self.last_input_hash = new_input_hash
+        if new_hash is not None:
+            self.last_hash = new_hash
         return self
 
     def add_user_message(self, *, message: UserMessage) -> Self:
@@ -160,7 +163,7 @@ class FlowRun:
                 conversation=Conversation[task.result_type](
                     user_messages=[], result_messages=[]
                 ),
-                last_input_hash=0,
+                last_hash=0,
             )
 
     def start(
@@ -289,10 +292,10 @@ class Task[**P, R: Result]:
     async def generate(
         self, state: NodeState[R], *args: P.args, **kwargs: P.kwargs
     ) -> R:
-        input_hash = self.__hash_input(*args, **kwargs)
-        if input_hash != state.last_input_hash:
+        state_hash = self.__hash_task_call(*args, **kwargs)
+        if state_hash != state.last_hash:
             result = await self._generator(*args, **kwargs)
-            state.add_result(result=result, new_input_hash=input_hash, overwrite=True)
+            state.add_result(result=result, new_hash=state_hash, overwrite=True)
             return result
         else:
             return state.result
@@ -326,9 +329,16 @@ class Task[**P, R: Result]:
         flow_run.add(node_state)
         return result
 
-    def __hash_input(self, *args: P.args, **kwargs: P.kwargs) -> int:
+    def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> int:
         try:
-            to_hash = str(tuple(args) + tuple(kwargs.values()))
+            to_hash = str(
+                tuple(args)
+                + tuple(kwargs.values())
+                + (
+                    self._generator.__code__,
+                    self._adapter.__code__ if self._adapter is not None else None,
+                )
+            )
             return hash(to_hash)
         except TypeError:
             raise Honk(f"Unhashable argument to task {self.name}: {args} {kwargs}")
