@@ -12,7 +12,7 @@ from typing import (
     overload,
 )
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 from goose.agent import (
     Agent,
@@ -32,51 +32,34 @@ class Result(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class GooseResponse[R: Result](BaseModel):
-    result: R
-
-
 class Conversation[R: Result](BaseModel):
-    messages: list[UserMessage | GooseResponse[R]]
+    user_messages: list[UserMessage]
+    result_messages: list[R]
     context: SystemMessage | None = None
-
-    @field_validator("messages")
-    def alternates_starting_with_result(
-        cls, messages: list[UserMessage | GooseResponse[R]]
-    ) -> list[UserMessage | GooseResponse[R]]:
-        if len(messages) == 0:
-            return messages
-        elif isinstance(messages[0], UserMessage):
-            raise Honk(
-                "User cannot start a conversation on a Task, must begin with a Result"
-            )
-
-        last_message_type: type[UserMessage | GooseResponse[R]] = type(messages[0])
-        for message in messages[1:]:
-            if isinstance(message, last_message_type):
-                raise Honk(
-                    "Conversation must alternate between User and Result messages"
-                )
-            last_message_type = type(message)
-
-        return messages
 
     @property
     def awaiting_response(self) -> bool:
-        return len(self.messages) % 2 == 0
+        return len(self.user_messages) == len(self.result_messages)
 
     def render(self) -> list[LLMMessage]:
         messages: list[LLMMessage] = []
         if self.context is not None:
             messages.append(self.context.render())
 
-        for message in self.messages:
-            if isinstance(message, UserMessage):
-                messages.append(message.render())
-            else:
-                messages.append(
-                    AssistantMessage(text=message.result.model_dump_json()).render()
-                )
+        for message_index in range(len(self.user_messages)):
+            messages.append(
+                AssistantMessage(
+                    text=self.result_messages[message_index].model_dump_json()
+                ).render()
+            )
+            messages.append(self.user_messages[message_index].render())
+
+        if len(self.result_messages) > len(self.user_messages):
+            messages.append(
+                AssistantMessage(
+                    text=self.result_messages[-1].model_dump_json()
+                ).render()
+            )
 
         return messages
 
@@ -93,11 +76,10 @@ class NodeState[ResultT: Result](BaseModel):
 
     @property
     def result(self) -> ResultT:
-        last_message = self.conversation.messages[-1]
-        if isinstance(last_message, GooseResponse):
-            return last_message.result
-        else:
+        if len(self.conversation.result_messages) == 0:
             raise Honk("Node awaiting response, has no result")
+
+        return self.conversation.result_messages[-1]
 
     def set_context(self, *, context: SystemMessage) -> Self:
         self.conversation.context = context
@@ -110,19 +92,16 @@ class NodeState[ResultT: Result](BaseModel):
         new_input_hash: int | None = None,
         overwrite: bool = False,
     ) -> Self:
-        if overwrite:
-            if len(self.conversation.messages) == 0:
-                self.conversation.messages.append(GooseResponse(result=result))
-            else:
-                self.conversation.messages[-1] = GooseResponse(result=result)
+        if overwrite and len(self.conversation.result_messages) > 0:
+            self.conversation.result_messages[-1] = result
         else:
-            self.conversation.messages.append(GooseResponse(result=result))
+            self.conversation.result_messages.append(result)
         if new_input_hash is not None:
             self.last_input_hash = new_input_hash
         return self
 
     def add_user_message(self, *, message: UserMessage) -> Self:
-        self.conversation.messages.append(message)
+        self.conversation.user_messages.append(message)
         return self
 
 
@@ -178,7 +157,9 @@ class FlowRun:
             return NodeState[task.result_type](
                 task_name=task.name,
                 index=index or 0,
-                conversation=Conversation[task.result_type](messages=[]),
+                conversation=Conversation[task.result_type](
+                    user_messages=[], result_messages=[]
+                ),
                 last_input_hash=0,
             )
 
@@ -314,10 +295,6 @@ class Task[**P, R: Result]:
             state.add_result(result=result, new_input_hash=input_hash, overwrite=True)
             return result
         else:
-            if not isinstance(state.conversation.messages[-1], GooseResponse):
-                raise Honk(
-                    "Conversation must alternate between User and Result messages"
-                )
             return state.result
 
     async def jam(
