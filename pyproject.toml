@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "goose-py"
-version = "0.3.10"
+version = "0.3.11"
 description = "A tool for AI workflows based on human-computer collaboration and structured output."
 authors = [
     "Nash Taylor <nash@chelle.ai>",

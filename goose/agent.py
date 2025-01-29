@@ -23,7 +23,7 @@ class UserMediaContentType(StrEnum):
     WEBP = "image/webp"
 
     # audio
-    MP3 = "audio/mpeg"
+    MP3 = "audio/mp3"
     WAV = "audio/wav"
 
     # files
