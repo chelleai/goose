@@ -159,7 +159,7 @@ class FlowRun:
         else:
             return NodeState[task.result_type](
                 task_name=task.name,
-                index=index or 0,
+                index=index,
                 conversation=Conversation[task.result_type](
                     user_messages=[], result_messages=[]
                 ),
@@ -185,6 +185,11 @@ class FlowRun:
         self._flow_name = ""
         self._id = ""
         self._agent = None
+
+    def clear_node(self, *, task: "Task[Any, Result]", index: int) -> None:
+        key = (task.name, index)
+        if key in self._node_states:
+            del self._node_states[key]
 
     def dump(self) -> SerializedFlowRun:
         return SerializedFlowRun(

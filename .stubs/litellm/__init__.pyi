@@ -1,10 +1,9 @@
 from typing import Any, Literal, NotRequired, TypedDict
 
 _LiteLLMGeminiModel = Literal[
-    "gemini/gemini-1.5-flash",
-    "gemini/gemini-1.5-pro",
-    "gemini/gemini-1.5-flash-8b",
-    "gemini/gemini-exp-1121",
+    "vertex_ai/gemini-1.5-flash",
+    "vertex_ai/gemini-1.5-pro",
+    "vertex_ai/gemini-1.5-flash-8b",
 ]
 _MessageRole = Literal["system", "user", "assistant"]
 

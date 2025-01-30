@@ -10,6 +10,7 @@ class IFlowRunStore(Protocol):
     def __init__(self, *, flow_name: str) -> None: ...
     async def get(self, *, run_id: str) -> FlowRun | None: ...
     async def save(self, *, run: FlowRun) -> None: ...
+    async def delete(self, *, run_id: str) -> None: ...
 
 
 class InMemoryFlowRunStore(IFlowRunStore):
@@ -22,3 +23,6 @@ class InMemoryFlowRunStore(IFlowRunStore):
 
     async def save(self, *, run: FlowRun) -> None:
         self._runs[run.id] = run
+
+    async def delete(self, *, run_id: str) -> None:
+        self._runs.pop(run_id, None)

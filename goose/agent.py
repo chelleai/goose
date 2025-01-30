@@ -10,10 +10,9 @@ from pydantic import BaseModel, computed_field
 
 
 class GeminiModel(StrEnum):
-    EXP = "gemini/gemini-exp-1121"
-    PRO = "gemini/gemini-1.5-pro"
-    FLASH = "gemini/gemini-1.5-flash"
-    FLASH_8B = "gemini/gemini-1.5-flash-8b"
+    PRO = "vertex_ai/gemini-1.5-pro"
+    FLASH = "vertex_ai/gemini-1.5-flash"
+    FLASH_8B = "vertex_ai/gemini-1.5-flash-8b"
 
 
 class UserMediaContentType(StrEnum):
@@ -121,13 +120,11 @@ class AgentResponse[R: BaseModel](BaseModel):
         GeminiModel.FLASH_8B: 30,
         GeminiModel.FLASH: 15,
         GeminiModel.PRO: 500,
-        GeminiModel.EXP: 0,
     }
     OUTPUT_CENTS_PER_MILLION_TOKENS: ClassVar[dict[GeminiModel, float]] = {
         GeminiModel.FLASH_8B: 30,
         GeminiModel.FLASH: 15,
         GeminiModel.PRO: 500,
-        GeminiModel.EXP: 0,
     }
 
     response: R
