@@ -115,6 +115,8 @@ class FlowRun:
         self._flow_name = ""
         self._id = ""
         self._agent: Agent | None = None
+        self._flow_args: tuple[Any, ...] | None = None
+        self._flow_kwargs: dict[str, Any] | None = None
 
     @property
     def flow_name(self) -> str:
@@ -130,17 +132,12 @@ class FlowRun:
             raise Honk("Agent is only accessible once a run is started")
         return self._agent
 
-    def add(self, node_state: NodeState[Any], /) -> None:
-        key = (node_state.task_name, node_state.index)
-        self._node_states[key] = node_state.model_dump_json()
+    @property
+    def flow_inputs(self) -> tuple[tuple[Any, ...], dict[str, Any]]:
+        if self._flow_args is None or self._flow_kwargs is None:
+            raise Honk("This Flow run has not been executed before")
 
-    def get_next[R: Result](self, *, task: "Task[Any, R]") -> NodeState[R]:
-        if task.name not in self._last_requested_indices:
-            self._last_requested_indices[task.name] = 0
-        else:
-            self._last_requested_indices[task.name] += 1
-
-        return self.get(task=task, index=self._last_requested_indices[task.name])
+        return self._flow_args, self._flow_kwargs
 
     def get_all[R: Result](self, *, task: "Task[Any, R]") -> list[NodeState[R]]:
         matching_nodes: list[NodeState[R]] = []
@@ -165,6 +162,22 @@ class FlowRun:
                 ),
                 last_hash=0,
             )
+
+    def set_flow_inputs(self, *args: Any, **kwargs: Any) -> None:
+        self._flow_args = args
+        self._flow_kwargs = kwargs
+
+    def add_node_state(self, node_state: NodeState[Any], /) -> None:
+        key = (node_state.task_name, node_state.index)
+        self._node_states[key] = node_state.model_dump_json()
+
+    def get_next[R: Result](self, *, task: "Task[Any, R]") -> NodeState[R]:
+        if task.name not in self._last_requested_indices:
+            self._last_requested_indices[task.name] = 0
+        else:
+            self._last_requested_indices[task.name] += 1
+
+        return self.get(task=task, index=self._last_requested_indices[task.name])
 
     def start(
         self,
@@ -192,25 +205,35 @@ class FlowRun:
             del self._node_states[key]
 
     def dump(self) -> SerializedFlowRun:
+        flow_args, flow_kwargs = self.flow_inputs
+
         return SerializedFlowRun(
             json.dumps(
                 {
-                    ":".join([task_name, str(index)]): value
-                    for (task_name, index), value in self._node_states.items()
+                    "node_states": {
+                        ":".join([task_name, str(index)]): value
+                        for (task_name, index), value in self._node_states.items()
+                    },
+                    "flow_args": list(flow_args),
+                    "flow_kwargs": flow_kwargs,
                 }
             )
         )
 
     @classmethod
-    def load(cls, run: SerializedFlowRun, /) -> Self:
+    def load(cls, serialized_flow_run: SerializedFlowRun, /) -> Self:
         flow_run = cls()
-        raw_node_states = json.loads(run)
+        run = json.loads(serialized_flow_run)
+
         new_node_states: dict[tuple[str, int], str] = {}
-        for key, node_state in raw_node_states.items():
+        for key, node_state in run["node_states"].items():
             task_name, index = tuple(key.split(":"))
             new_node_states[(task_name, int(index))] = node_state
-
         flow_run._node_states = new_node_states
+
+        flow_run._flow_args = tuple(run["flow_args"])
+        flow_run._flow_kwargs = run["flow_kwargs"]
+
         return flow_run
 
 
@@ -264,7 +287,20 @@ class Flow[**P]:
         _current_flow_run.set(old_run)
 
     async def generate(self, *args: P.args, **kwargs: P.kwargs) -> None:
+        flow_run = _current_flow_run.get()
+        if flow_run is None:
+            raise Honk("No current flow run")
+
+        flow_run.set_flow_inputs(*args, **kwargs)
         await self._fn(*args, **kwargs)
+
+    async def regenerate(self) -> None:
+        flow_run = _current_flow_run.get()
+        if flow_run is None:
+            raise Honk("No current flow run")
+
+        flow_args, flow_kwargs = flow_run.flow_inputs
+        await self._fn(*flow_args, **flow_kwargs)
 
 
 class Task[**P, R: Result]:
@@ -323,7 +359,7 @@ class Task[**P, R: Result]:
 
         result = await self._adapter(conversation=node_state.conversation)
         node_state.add_result(result=result)
-        flow_run.add(node_state)
+        flow_run.add_node_state(node_state)
 
         return result
 
@@ -331,7 +367,7 @@ class Task[**P, R: Result]:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get_next(task=self)
         result = await self.generate(node_state, *args, **kwargs)
-        flow_run.add(node_state)
+        flow_run.add_node_state(node_state)
         return result
 
     def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> int:

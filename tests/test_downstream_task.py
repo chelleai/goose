@@ -10,10 +10,6 @@ class GeneratedWord(Result):
     word: str
 
 
-class Words(Result):
-    words: list[GeneratedWord]
-
-
 @task
 async def generate_random_word(*, n_characters: int) -> GeneratedWord:
     return GeneratedWord(
