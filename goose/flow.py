@@ -13,7 +13,7 @@ from typing import (
     overload,
 )
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from goose.agent import (
     Agent,
@@ -25,12 +25,9 @@ from goose.agent import (
 )
 from goose.errors import Honk
 from goose.store import IFlowRunStore, InMemoryFlowRunStore
+from goose.result import Result
 
 SerializedFlowRun = NewType("SerializedFlowRun", str)
-
-
-class Result(BaseModel):
-    model_config = ConfigDict(frozen=True)
 
 
 class Conversation[R: Result](BaseModel):

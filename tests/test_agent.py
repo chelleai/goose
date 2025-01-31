@@ -1,7 +1,6 @@
 from unittest.mock import Mock
 
 import pytest
-from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
 from goose.agent import (
@@ -12,22 +11,15 @@ from goose.agent import (
     TextMessagePart,
     UserMessage,
 )
-from goose.flow import Result, flow, task
-
-
-class GreetingResult(Result):
-    greeting: str
-
-
-class Greeting(BaseModel):
-    greeting: str
+from goose.flow import flow, task
+from goose.result import TextResult
 
 
 class MockLiteLLMResponse:
     def __init__(
-        self, *, model: BaseModel, prompt_tokens: int, completion_tokens: int
+        self, *, response: str, prompt_tokens: int, completion_tokens: int
     ) -> None:
-        self.choices = [Mock(message=Mock(content=model.model_dump_json()))]
+        self.choices = [Mock(message=Mock(content=response))]
         self.usage = Mock(
             prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
         )
@@ -38,22 +30,18 @@ def mock_litellm(mocker: MockerFixture) -> Mock:
     return mocker.patch(
         "goose.agent.acompletion",
         return_value=MockLiteLLMResponse(
-            model=Greeting(greeting="Hello"),
-            prompt_tokens=10,
-            completion_tokens=10,
+            response="Hello", prompt_tokens=10, completion_tokens=10
         ),
     )
 
 
 @task
-async def use_agent(*, agent: Agent) -> GreetingResult:
-    greeting = await agent(
+async def use_agent(*, agent: Agent) -> TextResult:
+    return await agent(
         messages=[UserMessage(parts=[TextMessagePart(text="Hello")])],
         model=GeminiModel.FLASH_8B,
-        response_model=Greeting,
         task_name="greet",
     )
-    return GreetingResult(greeting=greeting.greeting)
 
 
 @flow
@@ -62,9 +50,9 @@ async def agent_flow(*, agent: Agent) -> None:
 
 
 class CustomLogger(IAgentLogger):
-    logged_responses: list[AgentResponse[Greeting]] = []
+    logged_responses: list[AgentResponse[TextResult]] = []
 
-    async def __call__(self, *, response: AgentResponse[Greeting]) -> None:
+    async def __call__(self, *, response: AgentResponse[TextResult]) -> None:
         self.logged_responses.append(response)
 
 
@@ -79,7 +67,7 @@ async def test_agent() -> None:
     async with agent_flow.start_run(run_id="1") as run:
         await agent_flow.generate(agent=run.agent)
 
-    assert run.get(task=use_agent).result.greeting == "Hello"
+    assert run.get(task=use_agent).result.text == "Hello"
 
 
 @pytest.mark.asyncio
