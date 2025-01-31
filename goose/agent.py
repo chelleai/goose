@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Literal, NotRequired, Protocol, TypedDict
 
 from litellm import acompletion
 from pydantic import BaseModel, computed_field
+from goose.result import Result, TextResult
 
 
 class GeminiModel(StrEnum):
@@ -115,7 +116,7 @@ class AgentResponseDump(TypedDict):
     duration_ms: int
 
 
-class AgentResponse[R: BaseModel](BaseModel):
+class AgentResponse[R: BaseModel | str](BaseModel):
     INPUT_CENTS_PER_MILLION_TOKENS: ClassVar[dict[GeminiModel, float]] = {
         GeminiModel.FLASH_8B: 30,
         GeminiModel.FLASH: 15,
@@ -186,6 +187,12 @@ class AgentResponse[R: BaseModel](BaseModel):
             json.dumps(message) for message in minimized_input_messages
         ]
 
+        output_message = (
+            self.response.model_dump_json()
+            if isinstance(self.response, BaseModel)
+            else self.response
+        )
+
         return {
             "run_id": self.run_id,
             "flow_name": self.flow_name,
@@ -193,7 +200,7 @@ class AgentResponse[R: BaseModel](BaseModel):
             "model": self.model.value,
             "system_message": minimized_system_message,
             "input_messages": minimized_input_messages,
-            "output_message": self.response.model_dump_json(),
+            "output_message": output_message,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "input_cost": self.input_cost,
@@ -221,13 +228,13 @@ class Agent:
         self.run_id = run_id
         self.logger = logger
 
-    async def __call__[R: BaseModel](
+    async def __call__[R: Result](
         self,
         *,
         messages: list[UserMessage | AssistantMessage],
         model: GeminiModel,
-        response_model: type[R],
         task_name: str,
+        response_model: type[R] = TextResult,
         system: SystemMessage | None = None,
     ) -> R:
         start_time = datetime.now()
@@ -235,22 +242,25 @@ class Agent:
         if system is not None:
             rendered_messages.insert(0, system.render())
 
-        response = await acompletion(
-            model=model.value,
-            messages=rendered_messages,
-            response_format={
-                "type": "json_object",
-                "response_schema": response_model.model_json_schema(),
-                "enforce_validation": True,
-            },
-        )
+        if response_model is TextResult:
+            response = await acompletion(model=model.value, messages=rendered_messages)
+            parsed_response = response_model.model_validate(
+                {"text": response.choices[0].message.content}
+            )
+        else:
+            response = await acompletion(
+                model=model.value,
+                messages=rendered_messages,
+                response_format={
+                    "type": "json_object",
+                    "response_schema": response_model.model_json_schema(),
+                    "enforce_validation": True,
+                },
+            )
+            parsed_response = response_model.model_validate_json(
+                response.choices[0].message.content
+            )
 
-        if len(response.choices) == 0:
-            raise RuntimeError("No content returned from LLM call.")
-
-        parsed_response = response_model.model_validate_json(
-            response.choices[0].message.content
-        )
         end_time = datetime.now()
         agent_response = AgentResponse(
             response=parsed_response,
@@ -271,4 +281,4 @@ class Agent:
         else:
             logging.info(agent_response.model_dump())
 
-        return agent_response.response
+        return parsed_response
