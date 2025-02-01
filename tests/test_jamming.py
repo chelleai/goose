@@ -1,10 +1,12 @@
 import random
 import string
+from unittest.mock import Mock
 
 import pytest
+from pytest_mock import MockerFixture
 
-from goose.agent import Agent, SystemMessage, TextMessagePart, UserMessage
-from goose.flow import Conversation, Result, flow, task
+from goose.agent import SystemMessage, TextMessagePart, UserMessage
+from goose.flow import Result, flow, task
 
 
 class GeneratedWord(Result):
@@ -22,11 +24,13 @@ async def generate_random_word(*, n_characters: int) -> GeneratedWord:
     )
 
 
-@generate_random_word.adapter
-async def change_word(
-    *, conversation: Conversation[GeneratedWord], agent: Agent
-) -> GeneratedWord:
-    return GeneratedWord(word="__ADAPTED__")
+@pytest.fixture
+def generate_random_word_adapter(mocker: MockerFixture) -> Mock:
+    return mocker.patch.object(
+        generate_random_word,
+        "_Task__adapt",
+        return_value=GeneratedWord(word="__ADAPTED__"),
+    )
 
 
 @task
@@ -41,6 +45,7 @@ async def sentence() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("generate_random_word_adapter")
 async def test_jamming() -> None:
     async with sentence.start_run(run_id="1") as first_run:
         await sentence.generate()
