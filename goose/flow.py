@@ -24,8 +24,8 @@ from goose.agent import (
     UserMessage,
 )
 from goose.errors import Honk
-from goose.store import IFlowRunStore, InMemoryFlowRunStore
 from goose.result import Result
+from goose.store import IFlowRunStore, InMemoryFlowRunStore
 
 SerializedFlowRun = NewType("SerializedFlowRun", str)
 
@@ -65,7 +65,9 @@ class Conversation[R: Result](BaseModel):
 class IAdapter[ResultT: Result](Protocol):
     __code__: CodeType
 
-    async def __call__(self, *, conversation: Conversation[ResultT]) -> ResultT: ...
+    async def __call__(
+        self, *, conversation: Conversation[ResultT], agent: Agent
+    ) -> ResultT: ...
 
 
 class NodeState[ResultT: Result](BaseModel):
@@ -354,7 +356,9 @@ class Task[**P, R: Result]:
             node_state.set_context(context=context)
         node_state.add_user_message(message=user_message)
 
-        result = await self._adapter(conversation=node_state.conversation)
+        result = await self._adapter(
+            conversation=node_state.conversation, agent=flow_run.agent
+        )
         node_state.add_result(result=result)
         flow_run.add_node_state(node_state)
 
