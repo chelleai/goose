@@ -18,13 +18,14 @@ from pydantic import BaseModel
 from goose.agent import (
     Agent,
     AssistantMessage,
+    GeminiModel,
     IAgentLogger,
     LLMMessage,
     SystemMessage,
     UserMessage,
 )
 from goose.errors import Honk
-from goose.result import Result
+from goose.result import Result, TextResult
 from goose.store import IFlowRunStore, InMemoryFlowRunStore
 
 SerializedFlowRun = NewType("SerializedFlowRun", str)
@@ -309,10 +310,12 @@ class Task[**P, R: Result]:
         /,
         *,
         retries: int = 0,
+        adapter_model: GeminiModel = GeminiModel.FLASH,
     ) -> None:
         self._generator = generator
-        self._adapter: IAdapter[R] | None = None
         self._retries = retries
+        self._adapter_model = adapter_model
+        self._adapter_model = adapter_model
 
     @property
     def result_type(self) -> type[R]:
@@ -324,10 +327,6 @@ class Task[**P, R: Result]:
     @property
     def name(self) -> str:
         return self._generator.__name__
-
-    def adapter(self, adapter: IAdapter[R]) -> Self:
-        self._adapter = adapter
-        return self
 
     async def generate(
         self, state: NodeState[R], *args: P.args, **kwargs: P.kwargs
@@ -349,14 +348,12 @@ class Task[**P, R: Result]:
     ) -> R:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get(task=self, index=index)
-        if self._adapter is None:
-            raise Honk("No adapter provided for Task")
 
         if context is not None:
             node_state.set_context(context=context)
         node_state.add_user_message(message=user_message)
 
-        result = await self._adapter(
+        result = await self.__adapt(
             conversation=node_state.conversation, agent=flow_run.agent
         )
         node_state.add_result(result=result)
@@ -371,15 +368,34 @@ class Task[**P, R: Result]:
         flow_run.add_node_state(node_state)
         return result
 
+    async def __adapt(self, *, conversation: Conversation[R], agent: Agent) -> R:
+        messages: list[UserMessage | AssistantMessage] = []
+        for message_index in range(len(conversation.user_messages)):
+            user_message = conversation.user_messages[message_index]
+            result = conversation.result_messages[message_index]
+
+            if isinstance(result, TextResult):
+                assistant_text = result.text
+            else:
+                assistant_text = result.model_dump_json()
+            assistant_message = AssistantMessage(text=assistant_text)
+            messages.append(assistant_message)
+            messages.append(user_message)
+
+        return await agent(
+            messages=messages,
+            model=self._adapter_model,
+            task_name=f"adapt--{self.name}",
+            system=conversation.context,
+            response_model=self.result_type,
+        )
+
     def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> int:
         try:
             to_hash = str(
                 tuple(args)
                 + tuple(kwargs.values())
-                + (
-                    self._generator.__code__,
-                    self._adapter.__code__ if self._adapter is not None else None,
-                )
+                + (self._generator.__code__, self._adapter_model)
             )
             return hash(to_hash)
         except TypeError:
@@ -396,22 +412,23 @@ class Task[**P, R: Result]:
 def task[**P, R: Result](generator: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
 @overload
 def task[**P, R: Result](
-    *, retries: int = 0
+    *, retries: int = 0, adapter_model: GeminiModel = GeminiModel.FLASH
 ) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
 def task[**P, R: Result](
     generator: Callable[P, Awaitable[R]] | None = None,
     /,
     *,
     retries: int = 0,
+    adapter_model: GeminiModel = GeminiModel.FLASH,
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if generator is None:
 
         def decorator(fn: Callable[P, Awaitable[R]]) -> Task[P, R]:
-            return Task(fn, retries=retries)
+            return Task(fn, retries=retries, adapter_model=adapter_model)
 
         return decorator
 
-    return Task(generator, retries=retries)
+    return Task(generator, retries=retries, adapter_model=adapter_model)
 
 
 @overload
