@@ -3,7 +3,7 @@ import string
 
 import pytest
 
-from goose.agent import SystemMessage, TextMessagePart, UserMessage
+from goose.agent import Agent, SystemMessage, TextMessagePart, UserMessage
 from goose.flow import Conversation, Result, flow, task
 
 
@@ -23,7 +23,9 @@ async def generate_random_word(*, n_characters: int) -> GeneratedWord:
 
 
 @generate_random_word.adapter
-async def change_word(*, conversation: Conversation[GeneratedWord]) -> GeneratedWord:
+async def change_word(
+    *, conversation: Conversation[GeneratedWord], agent: Agent
+) -> GeneratedWord:
     return GeneratedWord(word="__ADAPTED__")
 
 
