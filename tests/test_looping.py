@@ -1,6 +1,6 @@
 import pytest
 
-from goose.flow import Result, flow, task
+from goose import Result, flow, task
 
 
 class CourseObjective(Result):

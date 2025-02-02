@@ -3,16 +3,9 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from goose.agent import (
-    Agent,
-    AgentResponse,
-    GeminiModel,
-    IAgentLogger,
-    TextMessagePart,
-    UserMessage,
-)
-from goose.flow import flow, task
-from goose.result import TextResult
+from goose import TextResult, flow, task
+from goose._agent import Agent, AgentResponse, IAgentLogger
+from goose.types.agent import GeminiModel, TextMessagePart, UserMessage
 
 
 class MockLiteLLMResponse:
@@ -28,7 +21,7 @@ class MockLiteLLMResponse:
 @pytest.fixture
 def mock_litellm(mocker: MockerFixture) -> Mock:
     return mocker.patch(
-        "goose.agent.acompletion",
+        "goose._agent.acompletion",
         return_value=MockLiteLLMResponse(
             response="Hello", prompt_tokens=10, completion_tokens=10
         ),

@@ -3,8 +3,8 @@ import string
 
 import pytest
 
+from goose import Result, flow, task
 from goose.errors import Honk
-from goose.flow import Result, flow, task
 
 
 class GeneratedWord(Result):
