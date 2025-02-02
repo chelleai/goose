@@ -1,4 +1,3 @@
-import base64
 import json
 import logging
 from datetime import datetime
@@ -59,12 +58,12 @@ class TextMessagePart(BaseModel):
 
 class MediaMessagePart(BaseModel):
     content_type: UserMediaContentType
-    content: bytes
+    content: str
 
     def render(self) -> LLMMediaMessagePart:
         return {
             "type": "image_url",
-            "image_url": f"data:{self.content_type};base64,{base64.b64encode(self.content).decode()}",
+            "image_url": f"data:{self.content_type};base64,{self.content}",
         }
 
 
