@@ -1,8 +1,10 @@
-import pytest
-from goose.errors import Honk
 import random
 import string
-from goose.flow import Result, flow, task
+
+import pytest
+
+from goose import Result, flow, task
+from goose.errors import Honk
 
 
 class GeneratedWord(Result):

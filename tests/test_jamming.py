@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from goose.agent import SystemMessage, TextMessagePart, UserMessage
-from goose.flow import Result, flow, task
+from goose import Result, flow, task
+from goose.types.agent import SystemMessage, TextMessagePart, UserMessage
 
 
 class GeneratedWord(Result):
