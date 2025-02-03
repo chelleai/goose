@@ -4,27 +4,21 @@ import pytest
 from pytest_mock import MockerFixture
 
 from goose import TextResult, flow, task
-from goose._agent import Agent, AgentResponse, IAgentLogger
-from goose.types.agent import GeminiModel, TextMessagePart, UserMessage
+from goose._internal.agent import Agent, AgentResponse, IAgentLogger
+from goose.agent import GeminiModel, TextMessagePart, UserMessage
 
 
 class MockLiteLLMResponse:
-    def __init__(
-        self, *, response: str, prompt_tokens: int, completion_tokens: int
-    ) -> None:
+    def __init__(self, *, response: str, prompt_tokens: int, completion_tokens: int) -> None:
         self.choices = [Mock(message=Mock(content=response))]
-        self.usage = Mock(
-            prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
-        )
+        self.usage = Mock(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
 
 
 @pytest.fixture
 def mock_litellm(mocker: MockerFixture) -> Mock:
     return mocker.patch(
-        "goose._agent.acompletion",
-        return_value=MockLiteLLMResponse(
-            response="Hello", prompt_tokens=10, completion_tokens=10
-        ),
+        "goose._internal.agent.acompletion",
+        return_value=MockLiteLLMResponse(response="Hello", prompt_tokens=10, completion_tokens=10),
     )
 
 

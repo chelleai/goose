@@ -1,8 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from goose import flow
-from goose._agent import Agent
+from goose import Agent, flow
 
 
 class MyMessage(BaseModel):

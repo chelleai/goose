@@ -1,11 +1,12 @@
-from typing import Awaitable, Callable, overload
+from collections.abc import Awaitable, Callable
+from typing import overload
 
-from goose._agent import Agent, GeminiModel, SystemMessage, UserMessage
-from goose._conversation import Conversation
-from goose._result import Result, TextResult
-from goose._state import FlowRun, NodeState, get_current_flow_run
+from goose._internal.agent import Agent, GeminiModel, SystemMessage, UserMessage
+from goose._internal.conversation import Conversation
+from goose._internal.result import Result, TextResult
+from goose._internal.state import FlowRun, NodeState, get_current_flow_run
+from goose._internal.types.agent import AssistantMessage
 from goose.errors import Honk
-from goose.types.agent import AssistantMessage
 
 
 class Task[**P, R: Result]:
@@ -33,9 +34,7 @@ class Task[**P, R: Result]:
     def name(self) -> str:
         return self._generator.__name__
 
-    async def generate(
-        self, state: NodeState[R], *args: P.args, **kwargs: P.kwargs
-    ) -> R:
+    async def generate(self, state: NodeState[R], *args: P.args, **kwargs: P.kwargs) -> R:
         state_hash = self.__hash_task_call(*args, **kwargs)
         if state_hash != state.last_hash:
             result = await self._generator(*args, **kwargs)
@@ -58,9 +57,7 @@ class Task[**P, R: Result]:
             node_state.set_context(context=context)
         node_state.add_user_message(message=user_message)
 
-        result = await self.__adapt(
-            conversation=node_state.conversation, agent=flow_run.agent
-        )
+        result = await self.__adapt(conversation=node_state.conversation, agent=flow_run.agent)
         node_state.add_result(result=result)
         flow_run.add_node_state(node_state)
 
@@ -97,11 +94,7 @@ class Task[**P, R: Result]:
 
     def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> int:
         try:
-            to_hash = str(
-                tuple(args)
-                + tuple(kwargs.values())
-                + (self._generator.__code__, self._adapter_model)
-            )
+            to_hash = str(tuple(args) + tuple(kwargs.values()) + (self._generator.__code__, self._adapter_model))
             return hash(to_hash)
         except TypeError:
             raise Honk(f"Unhashable argument to task {self.name}: {args} {kwargs}")

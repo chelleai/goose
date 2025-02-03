@@ -1,5 +1,4 @@
-from goose._agent import Agent, AgentResponse, IAgentLogger
-from goose._flow import flow
-from goose._result import Result, TextResult
-from goose._store import IFlowRunStore
-from goose._task import task
+from goose._internal.agent import Agent
+from goose._internal.flow import flow
+from goose._internal.result import Result, TextResult
+from goose._internal.task import task

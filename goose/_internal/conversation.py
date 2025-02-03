@@ -1,7 +1,12 @@
 from pydantic import BaseModel
 
-from goose._result import Result
-from goose.types.agent import AssistantMessage, LLMMessage, SystemMessage, UserMessage
+from goose._internal.result import Result
+from goose._internal.types.agent import (
+    AssistantMessage,
+    LLMMessage,
+    SystemMessage,
+    UserMessage,
+)
 
 
 class Conversation[R: Result](BaseModel):
@@ -19,18 +24,10 @@ class Conversation[R: Result](BaseModel):
             messages.append(self.context.render())
 
         for message_index in range(len(self.user_messages)):
-            messages.append(
-                AssistantMessage(
-                    text=self.result_messages[message_index].model_dump_json()
-                ).render()
-            )
+            messages.append(AssistantMessage(text=self.result_messages[message_index].model_dump_json()).render())
             messages.append(self.user_messages[message_index].render())
 
         if len(self.result_messages) > len(self.user_messages):
-            messages.append(
-                AssistantMessage(
-                    text=self.result_messages[-1].model_dump_json()
-                ).render()
-            )
+            messages.append(AssistantMessage(text=self.result_messages[-1].model_dump_json()).render())
 
         return messages
