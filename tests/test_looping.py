@@ -31,9 +31,7 @@ async def number_of_learning_outcomes() -> NumberOfLearningOutcomes:
 
 
 @task
-async def learning_outcome(
-    *, objective: CourseObjective, previous_outcomes: list[LearningOutcome]
-) -> LearningOutcome:
+async def learning_outcome(*, objective: CourseObjective, previous_outcomes: list[LearningOutcome]) -> LearningOutcome:
     return LearningOutcome(outcome="Learn Python")
 
 
@@ -48,9 +46,7 @@ async def course_content() -> None:
     num_outcomes = await number_of_learning_outcomes()
     outcomes: list[LearningOutcome] = []
     for _ in range(num_outcomes.number):
-        outcomes.append(
-            await learning_outcome(objective=objective, previous_outcomes=outcomes)
-        )
+        outcomes.append(await learning_outcome(objective=objective, previous_outcomes=outcomes))
 
     for outcome in outcomes:
         await quiz_question(outcome=outcome.outcome)

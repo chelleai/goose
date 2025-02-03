@@ -6,8 +6,13 @@ from typing import Any, ClassVar, Protocol, TypedDict
 from litellm import acompletion
 from pydantic import BaseModel, computed_field
 
-from goose._result import Result, TextResult
-from goose.types.agent import AssistantMessage, GeminiModel, SystemMessage, UserMessage
+from goose._internal.result import Result, TextResult
+from goose._internal.types.agent import (
+    AssistantMessage,
+    GeminiModel,
+    SystemMessage,
+    UserMessage,
+)
 
 
 class AgentResponseDump(TypedDict):
@@ -60,20 +65,12 @@ class AgentResponse[R: BaseModel | str](BaseModel):
     @computed_field
     @property
     def input_cost(self) -> float:
-        return (
-            self.INPUT_CENTS_PER_MILLION_TOKENS[self.model]
-            * self.input_tokens
-            / 1_000_000
-        )
+        return self.INPUT_CENTS_PER_MILLION_TOKENS[self.model] * self.input_tokens / 1_000_000
 
     @computed_field
     @property
     def output_cost(self) -> float:
-        return (
-            self.OUTPUT_CENTS_PER_MILLION_TOKENS[self.model]
-            * self.output_tokens
-            / 1_000_000
-        )
+        return self.OUTPUT_CENTS_PER_MILLION_TOKENS[self.model] * self.output_tokens / 1_000_000
 
     @computed_field
     @property
@@ -95,15 +92,9 @@ class AgentResponse[R: BaseModel | str](BaseModel):
             for part in message["content"]:
                 if part["type"] == "image_url":
                     part["image_url"] = "__MEDIA__"
-        minimized_input_messages = [
-            json.dumps(message) for message in minimized_input_messages
-        ]
+        minimized_input_messages = [json.dumps(message) for message in minimized_input_messages]
 
-        output_message = (
-            self.response.model_dump_json()
-            if isinstance(self.response, BaseModel)
-            else self.response
-        )
+        output_message = self.response.model_dump_json() if isinstance(self.response, BaseModel) else self.response
 
         return {
             "run_id": self.run_id,
@@ -156,9 +147,7 @@ class Agent:
 
         if response_model is TextResult:
             response = await acompletion(model=model.value, messages=rendered_messages)
-            parsed_response = response_model.model_validate(
-                {"text": response.choices[0].message.content}
-            )
+            parsed_response = response_model.model_validate({"text": response.choices[0].message.content})
         else:
             response = await acompletion(
                 model=model.value,
@@ -169,9 +158,7 @@ class Agent:
                     "enforce_validation": True,
                 },
             )
-            parsed_response = response_model.model_validate_json(
-                response.choices[0].message.content
-            )
+            parsed_response = response_model.model_validate_json(response.choices[0].message.content)
 
         end_time = datetime.now()
         agent_response = AgentResponse(

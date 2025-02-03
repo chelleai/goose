@@ -1,62 +1,73 @@
-[tool.poetry]
+[project]
 name = "goose-py"
-version = "0.6.0"
+version = "0.7.1"
 description = "A tool for AI workflows based on human-computer collaboration and structured output."
-authors = [
-    "Nash Taylor <nash@chelle.ai>",
-    "Joshua Cook <joshua@chelle.ai>",
-    "Michael Sankur <michael@chelle.ai>"
-]
 readme = "README.md"
-homepage = "https://github.com/chelle-ai/goose"
-repository = "https://github.com/chelle-ai/goose"
-documentation = "https://github.com/chelle-ai/goose"
-keywords = ["ai", "yaml", "configuration", "llm"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
+authors = [
+    { name = "Nash Taylor", email = "nash@chelle.ai" },
+    { name = "Joshua Cook", email = "joshua@chelle.ai" },
+    { name = "Michael Sankur", email = "michael@chelle.ai" },
 ]
-packages = [
-    { include = "goose" }
+requires-python = ">=3.12"
+dependencies = [
+    "jsonpath-ng>=1.7.0",
+    "litellm>=1.56.5",
+    "pydantic>=2.8.2",
 ]
-
-
-[tool.poetry.dependencies]
-python = "^3.12"
-
-jsonpath-ng = "^1.7.0"
-litellm = "^1.56.5"
-pydantic = "^2.8.2"
-ipykernel = { version = "*", optional = true }
-pytest = { version = "<8", optional = true }
-pytest-mock = { version = "*", optional = true }
-pytest-asyncio = { version = "*", optional = true }
-
-
-[tool.poetry.extras]
-test = ["ipykernel", "pytest", "pytest-mock", "pytest-asyncio"]
-
 
 [build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0"]
-build-backend = "poetry_dynamic_versioning.backend"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["goose"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.393",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.3",
+    "pytest-mock>=3.14.0",
+    "ruff>=0.9.4",
+]
+
+
+[tool.ruff]
+exclude = [
+    "__init__.py",
+    ".venv",
+    "**/.venv",
+    "notebooks",
+    ".stubs",
+]
+force-exclude = true
+line-length = 120
+
+[tool.ruff.lint]
+select = [ "E", "F", "I", "UP" ]
+ignore = [ "E501" ]
+
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "goose",
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
 
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportMissingModuleSource = false
 useLibraryCodeForTypes = false
-reportImportCycles = false
 reportUnknownMemberType = false
 reportUnknownVariableType = false
 stubPath = ".stubs"
-exclude = [
-    "goose/__init__.py",
-    ".venv",
-]
+venvPath = "."
+venv = ".venv"
+exclude = ["goose/__init__.py", ".venv", "notebooks"]
 
 [tool.pytest.ini_options]
 filterwarnings = [
@@ -64,3 +75,7 @@ filterwarnings = [
     "ignore::SyntaxWarning",
     "ignore::UserWarning",
 ]
+addopts = "-v"
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = "test_*.py"

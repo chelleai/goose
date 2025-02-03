@@ -1,21 +1,20 @@
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from types import CodeType
-from typing import AsyncIterator, Awaitable, Callable, Protocol, overload
+from typing import Protocol, overload
 
-from goose._agent import Agent, IAgentLogger
-from goose._conversation import Conversation
-from goose._result import Result
-from goose._state import FlowRun, get_current_flow_run, set_current_flow_run
-from goose._store import IFlowRunStore, InMemoryFlowRunStore
+from goose._internal.agent import Agent, IAgentLogger
+from goose._internal.conversation import Conversation
+from goose._internal.result import Result
+from goose._internal.state import FlowRun, get_current_flow_run, set_current_flow_run
+from goose._internal.store import IFlowRunStore, InMemoryFlowRunStore
 from goose.errors import Honk
 
 
 class IAdapter[ResultT: Result](Protocol):
     __code__: CodeType
 
-    async def __call__(
-        self, *, conversation: Conversation[ResultT], agent: Agent
-    ) -> ResultT: ...
+    async def __call__(self, *, conversation: Conversation[ResultT], agent: Agent) -> ResultT: ...
 
 
 class Flow[**P]:

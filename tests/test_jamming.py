@@ -6,7 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from goose import Result, flow, task
-from goose.types.agent import SystemMessage, TextMessagePart, UserMessage
+from goose.agent import SystemMessage, TextMessagePart, UserMessage
 
 
 class GeneratedWord(Result):
@@ -19,9 +19,7 @@ class GeneratedSentence(Result):
 
 @task
 async def generate_random_word(*, n_characters: int) -> GeneratedWord:
-    return GeneratedWord(
-        word="".join(random.sample(string.ascii_lowercase, n_characters))
-    )
+    return GeneratedWord(word="".join(random.sample(string.ascii_lowercase, n_characters)))
 
 
 @pytest.fixture

@@ -4,18 +4,18 @@ from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel
 
-from goose._agent import (
+from goose._internal.agent import (
     Agent,
     IAgentLogger,
     SystemMessage,
     UserMessage,
 )
-from goose._conversation import Conversation
-from goose._result import Result
+from goose._internal.conversation import Conversation
+from goose._internal.result import Result
 from goose.errors import Honk
 
 if TYPE_CHECKING:
-    from goose._task import Task
+    from goose._internal.task import Task
 
 
 @dataclass
@@ -97,23 +97,17 @@ class FlowRun:
         matching_nodes: list[NodeState[R]] = []
         for key, node_state in self._node_states.items():
             if key[0] == task.name:
-                matching_nodes.append(
-                    NodeState[task.result_type].model_validate_json(node_state)
-                )
+                matching_nodes.append(NodeState[task.result_type].model_validate_json(node_state))
         return sorted(matching_nodes, key=lambda node: node.index)
 
     def get[R: Result](self, *, task: "Task[Any, R]", index: int = 0) -> NodeState[R]:
-        if (
-            existing_node_state := self._node_states.get((task.name, index))
-        ) is not None:
+        if (existing_node_state := self._node_states.get((task.name, index))) is not None:
             return NodeState[task.result_type].model_validate_json(existing_node_state)
         else:
             return NodeState[task.result_type](
                 task_name=task.name,
                 index=index,
-                conversation=Conversation[task.result_type](
-                    user_messages=[], result_messages=[]
-                ),
+                conversation=Conversation[task.result_type](user_messages=[], result_messages=[]),
                 last_hash=0,
             )
 
@@ -143,9 +137,7 @@ class FlowRun:
         self._last_requested_indices = {}
         self._flow_name = flow_name
         self._id = run_id
-        self._agent = Agent(
-            flow_name=self.flow_name, run_id=self.id, logger=agent_logger
-        )
+        self._agent = Agent(flow_name=self.flow_name, run_id=self.id, logger=agent_logger)
 
     def end(self) -> None:
         self._last_requested_indices = {}
@@ -177,9 +169,7 @@ class FlowRun:
         return flow_run
 
 
-_current_flow_run: ContextVar[FlowRun | None] = ContextVar(
-    "current_flow_run", default=None
-)
+_current_flow_run: ContextVar[FlowRun | None] = ContextVar("current_flow_run", default=None)
 
 
 def get_current_flow_run() -> FlowRun | None:

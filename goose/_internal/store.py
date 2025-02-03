@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from goose._flow import FlowRun
-from goose._state import FlowRunState
+from goose._internal.flow import FlowRun
+from goose._internal.state import FlowRunState
 
 
 class IFlowRunStore(Protocol):
