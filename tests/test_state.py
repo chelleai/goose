@@ -5,9 +5,13 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from goose import Result, flow, task
+from goose import Agent, FlowArguments, Result, flow, task
 from goose._internal.types.agent import SystemMessage, TextMessagePart, UserMessage
 from goose.errors import Honk
+
+
+class MyFlowArguments(FlowArguments):
+    n_characters: int
 
 
 class GeneratedWord(Result):
@@ -38,15 +42,15 @@ async def make_sentence(*, words: list[GeneratedWord]) -> GeneratedSentence:
 
 
 @flow
-async def with_state() -> None:
-    word = await generate_random_word(n_characters=10)
+async def with_state(*, flow_arguments: MyFlowArguments, agent: Agent) -> None:
+    word = await generate_random_word(n_characters=flow_arguments.n_characters)
     await make_sentence(words=[word])
 
 
 @pytest.mark.asyncio
 async def test_state_causes_caching() -> None:
     async with with_state.start_run(run_id="1") as run:
-        await with_state.generate()
+        await with_state.generate(MyFlowArguments(n_characters=10))
 
     random_word = run.get(task=generate_random_word).result.word
 
@@ -54,7 +58,7 @@ async def test_state_causes_caching() -> None:
         with_state.current_run
 
     async with with_state.start_run(run_id="1") as new_run:
-        await with_state.generate()
+        await with_state.generate(MyFlowArguments(n_characters=10))
 
     new_random_word = new_run.get(task=generate_random_word).result.word
 
@@ -65,7 +69,7 @@ async def test_state_causes_caching() -> None:
 @pytest.mark.usefixtures("generate_random_word_adapter")
 async def test_state_undo() -> None:
     async with with_state.start_run(run_id="2"):
-        await with_state.generate()
+        await with_state.generate(MyFlowArguments(n_characters=10))
 
     async with with_state.start_run(run_id="2"):
         await generate_random_word.refine(
@@ -83,7 +87,7 @@ async def test_state_undo() -> None:
 @pytest.mark.asyncio
 async def test_state_edit() -> None:
     async with with_state.start_run(run_id="3"):
-        await with_state.generate()
+        await with_state.generate(MyFlowArguments(n_characters=10))
 
     async with with_state.start_run(run_id="3") as run:
         generate_random_word.edit(result=GeneratedWord(word="__EDITED__"), index=0)

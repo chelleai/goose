@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable
-from typing import overload
+from typing import Any, overload
 
 from goose._internal.agent import Agent, GeminiModel, SystemMessage, UserMessage
 from goose._internal.conversation import Conversation
@@ -111,7 +111,7 @@ class Task[**P, R: Result]:
         except TypeError:
             raise Honk(f"Unhashable argument to task {self.name}: {args} {kwargs}")
 
-    def __get_current_flow_run(self) -> FlowRun:
+    def __get_current_flow_run(self) -> FlowRun[Any]:
         run = get_current_flow_run()
         if run is None:
             raise Honk("No current flow run")

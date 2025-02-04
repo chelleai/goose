@@ -1,6 +1,10 @@
 import pytest
 
-from goose import Result, flow, task
+from goose import Agent, FlowArguments, Result, flow, task
+
+
+class MyFlowArguments(FlowArguments):
+    pass
 
 
 class CourseObjective(Result):
@@ -41,7 +45,7 @@ async def quiz_question(*, outcome: str) -> QuizQuestion:
 
 
 @flow
-async def course_content() -> None:
+async def course_content(*, flow_arguments: MyFlowArguments, agent: Agent) -> None:
     objective = await course_objective()
     num_outcomes = await number_of_learning_outcomes()
     outcomes: list[LearningOutcome] = []
@@ -55,7 +59,7 @@ async def course_content() -> None:
 @pytest.mark.asyncio
 async def test_generate_course_content() -> None:
     async with course_content.start_run(run_id="1") as run:
-        await course_content.generate()
+        await course_content.generate(MyFlowArguments())
 
     quiz_questions = run.get_all(task=quiz_question)
     assert quiz_questions[0].result.question == "What is the meaning of Learn Python?"

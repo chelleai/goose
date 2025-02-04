@@ -5,8 +5,12 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from goose import Result, flow, task
+from goose import Agent, FlowArguments, Result, flow, task
 from goose.agent import SystemMessage, TextMessagePart, UserMessage
+
+
+class MyFlowArguments(FlowArguments):
+    pass
 
 
 class GeneratedWord(Result):
@@ -37,7 +41,7 @@ async def make_sentence(*, words: list[GeneratedWord]) -> GeneratedSentence:
 
 
 @flow
-async def sentence() -> None:
+async def sentence(*, flow_arguments: MyFlowArguments, agent: Agent) -> None:
     words = [await generate_random_word(n_characters=10) for _ in range(3)]
     await make_sentence(words=words)
 
@@ -46,7 +50,7 @@ async def sentence() -> None:
 @pytest.mark.usefixtures("generate_random_word_adapter")
 async def test_jamming() -> None:
     async with sentence.start_run(run_id="1") as first_run:
-        await sentence.generate()
+        await sentence.generate(MyFlowArguments())
 
     initial_random_words = first_run.get_all(task=generate_random_word)
     assert len(initial_random_words) == 3
@@ -66,7 +70,7 @@ async def test_jamming() -> None:
 
     # imagine this is a new process
     async with sentence.start_run(run_id="1") as third_run:
-        await sentence.generate()
+        await sentence.generate(MyFlowArguments())
 
     resulting_sentence = third_run.get(task=make_sentence)
     assert (

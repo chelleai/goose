@@ -1,8 +1,8 @@
+import json
 from contextvars import ContextVar
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, NewType, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from goose._internal.agent import (
     Agent,
@@ -17,12 +17,11 @@ from goose.errors import Honk
 if TYPE_CHECKING:
     from goose._internal.task import Task
 
+SerializedFlowRun = NewType("SerializedFlowRun", str)
 
-@dataclass
-class FlowRunState:
-    node_states: dict[tuple[str, int], str]
-    flow_args: tuple[Any, ...]
-    flow_kwargs: dict[str, Any]
+
+class FlowArguments(BaseModel):
+    model_config = ConfigDict(frozen=True)
 
 
 class NodeState[ResultT: Result](BaseModel):
@@ -73,15 +72,15 @@ class NodeState[ResultT: Result](BaseModel):
         return self
 
 
-class FlowRun:
-    def __init__(self) -> None:
+class FlowRun[FlowArgumentsT: FlowArguments]:
+    def __init__(self, *, flow_arguments_model: type[FlowArgumentsT]) -> None:
         self._node_states: dict[tuple[str, int], str] = {}
         self._last_requested_indices: dict[str, int] = {}
         self._flow_name = ""
         self._id = ""
         self._agent: Agent | None = None
-        self._flow_args: tuple[Any, ...] | None = None
-        self._flow_kwargs: dict[str, Any] | None = None
+        self._flow_arguments: FlowArgumentsT | None = None
+        self._flow_arguments_model = flow_arguments_model
 
     @property
     def flow_name(self) -> str:
@@ -98,11 +97,11 @@ class FlowRun:
         return self._agent
 
     @property
-    def flow_inputs(self) -> tuple[tuple[Any, ...], dict[str, Any]]:
-        if self._flow_args is None or self._flow_kwargs is None:
+    def flow_arguments(self) -> FlowArgumentsT:
+        if self._flow_arguments is None:
             raise Honk("This Flow run has not been executed before")
 
-        return self._flow_args, self._flow_kwargs
+        return self._flow_arguments
 
     def get_all[R: Result](self, *, task: "Task[Any, R]") -> list[NodeState[R]]:
         matching_nodes: list[NodeState[R]] = []
@@ -122,9 +121,8 @@ class FlowRun:
                 last_hash=0,
             )
 
-    def set_flow_inputs(self, *args: Any, **kwargs: Any) -> None:
-        self._flow_args = args
-        self._flow_kwargs = kwargs
+    def set_flow_arguments(self, flow_arguments: FlowArgumentsT, /) -> None:
+        self._flow_arguments = flow_arguments
 
     def upsert_node_state(self, node_state: NodeState[Any], /) -> None:
         key = (node_state.task_name, node_state.index)
@@ -161,31 +159,35 @@ class FlowRun:
         if key in self._node_states:
             del self._node_states[key]
 
-    def dump(self) -> FlowRunState:
-        flow_args, flow_kwargs = self.flow_inputs
-
-        return FlowRunState(
-            node_states=self._node_states,
-            flow_args=flow_args,
-            flow_kwargs=flow_kwargs,
+    def dump(self) -> SerializedFlowRun:
+        formatted_node_states = {f"{k[0]},{k[1]}": v for k, v in self._node_states.items()}
+        return SerializedFlowRun(
+            json.dumps({"node_states": formatted_node_states, "flow_arguments": self.flow_arguments.model_dump()})
         )
 
     @classmethod
-    def load(cls, flow_run_state: FlowRunState, /) -> Self:
-        flow_run = cls()
-        flow_run._node_states = flow_run_state.node_states
-        flow_run._flow_args = flow_run_state.flow_args
-        flow_run._flow_kwargs = flow_run_state.flow_kwargs
+    def load(cls, *, serialized_flow_run: SerializedFlowRun, flow_arguments_model: type[FlowArgumentsT]) -> Self:
+        flow_run_state = json.loads(serialized_flow_run)
+        raw_node_states = flow_run_state["node_states"]
+        node_states: dict[tuple[str, int], str] = {}
+        for key, value in raw_node_states.items():
+            task_name, index = key.split(",")
+            node_states[(task_name, int(index))] = value
+        flow_arguments = flow_arguments_model.model_validate(flow_run_state["flow_arguments"])
+
+        flow_run = cls(flow_arguments_model=flow_arguments_model)
+        flow_run._node_states = node_states
+        flow_run._flow_arguments = flow_arguments
 
         return flow_run
 
 
-_current_flow_run: ContextVar[FlowRun | None] = ContextVar("current_flow_run", default=None)
+_current_flow_run: ContextVar[FlowRun[Any] | None] = ContextVar("current_flow_run", default=None)
 
 
-def get_current_flow_run() -> FlowRun | None:
+def get_current_flow_run() -> FlowRun[Any] | None:
     return _current_flow_run.get()
 
 
-def set_current_flow_run(flow_run: FlowRun | None) -> None:
+def set_current_flow_run(flow_run: FlowRun[Any] | None) -> None:
     _current_flow_run.set(flow_run)
