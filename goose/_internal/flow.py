@@ -30,13 +30,13 @@ class Flow[FlowArgumentsT: FlowArguments]:
         /,
         *,
         name: str | None = None,
-        store: IFlowRunStore[FlowArgumentsT] | None = None,
+        store: IFlowRunStore | None = None,
         agent_logger: IAgentLogger | None = None,
     ) -> None:
         self._fn = fn
         self._name = name
         self._agent_logger = agent_logger
-        self._store = store or InMemoryFlowRunStore(flow_name=self.name, flow_arguments_model=self.flow_arguments_model)
+        self._store = store or InMemoryFlowRunStore(flow_name=self.name)
 
     @property
     def flow_arguments_model(self) -> type[FlowArgumentsT]:
@@ -59,11 +59,13 @@ class Flow[FlowArgumentsT: FlowArguments]:
 
     @asynccontextmanager
     async def start_run(self, *, run_id: str) -> AsyncIterator[FlowRun[FlowArgumentsT]]:
-        existing_run = await self._store.get(run_id=run_id)
-        if existing_run is None:
-            run = FlowRun(flow_arguments_model=self.flow_arguments_model)
+        existing_serialized_run = await self._store.get(run_id=run_id)
+        if existing_serialized_run is not None:
+            run = FlowRun.load(
+                serialized_flow_run=existing_serialized_run, flow_arguments_model=self.flow_arguments_model
+            )
         else:
-            run = existing_run
+            run = FlowRun(flow_arguments_model=self.flow_arguments_model)
 
         old_run = get_current_flow_run()
         set_current_flow_run(run)
@@ -97,7 +99,7 @@ def flow[FlowArgumentsT: FlowArguments](fn: IGenerator[FlowArgumentsT], /) -> Fl
 def flow[FlowArgumentsT: FlowArguments](
     *,
     name: str | None = None,
-    store: IFlowRunStore[FlowArgumentsT] | None = None,
+    store: IFlowRunStore | None = None,
     agent_logger: IAgentLogger | None = None,
 ) -> Callable[[IGenerator[FlowArgumentsT]], Flow[FlowArgumentsT]]: ...
 def flow[FlowArgumentsT: FlowArguments](
@@ -105,7 +107,7 @@ def flow[FlowArgumentsT: FlowArguments](
     /,
     *,
     name: str | None = None,
-    store: IFlowRunStore[FlowArgumentsT] | None = None,
+    store: IFlowRunStore | None = None,
     agent_logger: IAgentLogger | None = None,
 ) -> Flow[FlowArgumentsT] | Callable[[IGenerator[FlowArgumentsT]], Flow[FlowArgumentsT]]:
     if fn is None:
