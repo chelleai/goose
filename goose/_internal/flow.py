@@ -70,7 +70,7 @@ class Flow[FlowArgumentsT: FlowArguments]:
 
         run.start(flow_name=self.name, run_id=run_id, agent_logger=self._agent_logger)
         yield run
-        await self._store.save(run=run)
+        await self._store.save(run_id=run_id, run=run.dump())
         run.end()
 
         set_current_flow_run(old_run)
