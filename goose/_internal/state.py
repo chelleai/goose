@@ -61,6 +61,13 @@ class NodeState[ResultT: Result](BaseModel):
         self.conversation.user_messages.append(message)
         return self
 
+    def edit_last_result(self, *, result: ResultT) -> Self:
+        if len(self.conversation.result_messages) == 0:
+            raise Honk("Node awaiting response, has no result")
+
+        self.conversation.result_messages[-1] = result
+        return self
+
     def undo(self) -> Self:
         self.conversation.undo()
         return self
@@ -119,7 +126,7 @@ class FlowRun:
         self._flow_args = args
         self._flow_kwargs = kwargs
 
-    def add_node_state(self, node_state: NodeState[Any], /) -> None:
+    def upsert_node_state(self, node_state: NodeState[Any], /) -> None:
         key = (node_state.task_name, node_state.index)
         self._node_states[key] = node_state.model_dump_json()
 

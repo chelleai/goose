@@ -78,3 +78,14 @@ async def test_state_undo() -> None:
         generate_random_word.undo()
 
     assert run.get(task=generate_random_word).result.word != "__ADAPTED__"
+
+
+@pytest.mark.asyncio
+async def test_state_edit() -> None:
+    async with with_state.start_run(run_id="3"):
+        await with_state.generate()
+
+    async with with_state.start_run(run_id="3") as run:
+        generate_random_word.edit(result=GeneratedWord(word="__EDITED__"), index=0)
+
+    assert run.get(task=generate_random_word).result.word == "__EDITED__"

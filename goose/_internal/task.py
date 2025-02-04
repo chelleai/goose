@@ -59,21 +59,27 @@ class Task[**P, R: Result]:
 
         result = await self.__adapt(conversation=node_state.conversation, agent=flow_run.agent)
         node_state.add_result(result=result)
-        flow_run.add_node_state(node_state)
+        flow_run.upsert_node_state(node_state)
 
         return result
+
+    def edit(self, *, result: R, index: int = 0) -> None:
+        flow_run = self.__get_current_flow_run()
+        node_state = flow_run.get(task=self, index=index)
+        node_state.edit_last_result(result=result)
+        flow_run.upsert_node_state(node_state)
 
     def undo(self, *, index: int = 0) -> None:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get(task=self, index=index)
         node_state.undo()
-        flow_run.add_node_state(node_state)
+        flow_run.upsert_node_state(node_state)
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get_next(task=self)
         result = await self.generate(node_state, *args, **kwargs)
-        flow_run.add_node_state(node_state)
+        flow_run.upsert_node_state(node_state)
         return result
 
     async def __adapt(self, *, conversation: Conversation[R], agent: Agent) -> R:
