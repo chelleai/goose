@@ -166,7 +166,9 @@ class FlowRun[FlowArgumentsT: FlowArguments]:
         )
 
     @classmethod
-    def load(cls, *, serialized_flow_run: SerializedFlowRun, flow_arguments_model: type[FlowArgumentsT]) -> Self:
+    def load[T: FlowArguments](
+        cls, *, serialized_flow_run: SerializedFlowRun, flow_arguments_model: type[T]
+    ) -> "FlowRun[T]":
         flow_run_state = json.loads(serialized_flow_run)
         raw_node_states = flow_run_state["node_states"]
         node_states: dict[tuple[str, int], str] = {}
@@ -175,7 +177,7 @@ class FlowRun[FlowArgumentsT: FlowArguments]:
             node_states[(task_name, int(index))] = value
         flow_arguments = flow_arguments_model.model_validate(flow_run_state["flow_arguments"])
 
-        flow_run = cls(flow_arguments_model=flow_arguments_model)
+        flow_run = FlowRun(flow_arguments_model=flow_arguments_model)
         flow_run._node_states = node_states
         flow_run._flow_arguments = flow_arguments
 
