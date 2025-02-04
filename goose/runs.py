@@ -1,4 +1,4 @@
-from goose._internal.state import FlowRun, FlowRunState
+from goose._internal.state import FlowRun, SerializedFlowRun
 from goose._internal.store import IFlowRunStore
 
-__all__ = ["FlowRun", "FlowRunState", "IFlowRunStore"]
+__all__ = ["FlowRun", "IFlowRunStore", "SerializedFlowRun"]

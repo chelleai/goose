@@ -3,9 +3,12 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from goose import TextResult, flow, task
-from goose._internal.agent import Agent, AgentResponse, IAgentLogger
-from goose.agent import GeminiModel, TextMessagePart, UserMessage
+from goose import Agent, FlowArguments, TextResult, flow, task
+from goose.agent import AgentResponse, GeminiModel, IAgentLogger, TextMessagePart, UserMessage
+
+
+class TestFlowArguments(FlowArguments):
+    pass
 
 
 class MockLiteLLMResponse:
@@ -32,7 +35,7 @@ async def use_agent(*, agent: Agent) -> TextResult:
 
 
 @flow
-async def agent_flow(*, agent: Agent) -> None:
+async def agent_flow(*, flow_arguments: TestFlowArguments, agent: Agent) -> None:
     await use_agent(agent=agent)
 
 
@@ -44,7 +47,7 @@ class CustomLogger(IAgentLogger):
 
 
 @flow(agent_logger=CustomLogger())
-async def agent_flow_with_custom_logger(*, agent: Agent) -> None:
+async def agent_flow_with_custom_logger(*, flow_arguments: TestFlowArguments, agent: Agent) -> None:
     await use_agent(agent=agent)
 
 
@@ -52,7 +55,7 @@ async def agent_flow_with_custom_logger(*, agent: Agent) -> None:
 @pytest.mark.usefixtures("mock_litellm")
 async def test_agent() -> None:
     async with agent_flow.start_run(run_id="1") as run:
-        await agent_flow.generate(agent=run.agent)
+        await agent_flow.generate(TestFlowArguments())
 
     assert run.get(task=use_agent).result.text == "Hello"
 
@@ -60,7 +63,7 @@ async def test_agent() -> None:
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_litellm")
 async def test_agent_custom_logger() -> None:
-    async with agent_flow_with_custom_logger.start_run(run_id="1") as run:
-        await agent_flow_with_custom_logger.generate(agent=run.agent)
+    async with agent_flow_with_custom_logger.start_run(run_id="1"):
+        await agent_flow_with_custom_logger.generate(TestFlowArguments())
 
     assert len(CustomLogger.logged_responses) == 1
