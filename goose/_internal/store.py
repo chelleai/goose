@@ -7,9 +7,9 @@ from goose._internal.state import FlowArguments, SerializedFlowRun
 
 
 class IFlowRunStore[FlowArgumentsT: FlowArguments](Protocol):
-    def __init__(self, *, flow_name: str) -> None: ...
+    def __init__(self, *, flow_name: str, flow_arguments_model: type[FlowArgumentsT]) -> None: ...
     async def get(self, *, run_id: str) -> FlowRun[FlowArgumentsT] | None: ...
-    async def save(self, *, run: FlowRun[FlowArgumentsT]) -> None: ...
+    async def save(self, *, run_id: str, run: SerializedFlowRun) -> None: ...
     async def delete(self, *, run_id: str) -> None: ...
 
 
@@ -26,8 +26,8 @@ class InMemoryFlowRunStore[FlowArgumentsT: FlowArguments](IFlowRunStore[FlowArgu
                 serialized_flow_run=serialized_flow_run, flow_arguments_model=self._flow_arguments_model
             )
 
-    async def save(self, *, run: FlowRun[FlowArgumentsT]) -> None:
-        self._runs[run.id] = run.dump()
+    async def save(self, *, run_id: str, run: SerializedFlowRun) -> None:
+        self._runs[run_id] = run
 
     async def delete(self, *, run_id: str) -> None:
         self._runs.pop(run_id, None)
