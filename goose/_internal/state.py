@@ -61,6 +61,10 @@ class NodeState[ResultT: Result](BaseModel):
         self.conversation.user_messages.append(message)
         return self
 
+    def undo(self) -> Self:
+        self.conversation.undo()
+        return self
+
 
 class FlowRun:
     def __init__(self) -> None:

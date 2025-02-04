@@ -1,12 +1,9 @@
+from typing import Self
+
 from pydantic import BaseModel
 
 from goose._internal.result import Result
-from goose._internal.types.agent import (
-    AssistantMessage,
-    LLMMessage,
-    SystemMessage,
-    UserMessage,
-)
+from goose._internal.types.agent import AssistantMessage, LLMMessage, SystemMessage, UserMessage
 
 
 class Conversation[R: Result](BaseModel):
@@ -31,3 +28,8 @@ class Conversation[R: Result](BaseModel):
             messages.append(AssistantMessage(text=self.result_messages[-1].model_dump_json()).render())
 
         return messages
+
+    def undo(self) -> Self:
+        self.user_messages.pop()
+        self.result_messages.pop()
+        return self

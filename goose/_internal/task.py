@@ -63,6 +63,12 @@ class Task[**P, R: Result]:
 
         return result
 
+    def undo(self, *, index: int = 0) -> None:
+        flow_run = self.__get_current_flow_run()
+        node_state = flow_run.get(task=self, index=index)
+        node_state.undo()
+        flow_run.add_node_state(node_state)
+
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get_next(task=self)
