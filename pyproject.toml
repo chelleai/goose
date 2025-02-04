@@ -1,6 +1,6 @@
 [project]
 name = "goose-py"
-version = "0.7.3"
+version = "0.8.0"
 description = "A tool for AI workflows based on human-computer collaboration and structured output."
 readme = "README.md"
 authors = [
@@ -75,7 +75,8 @@ filterwarnings = [
     "ignore::SyntaxWarning",
     "ignore::UserWarning",
 ]
-addopts = "-v"
 testpaths = ["tests"]
 pythonpath = ["."]
 python_files = "test_*.py"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_mode = "auto"

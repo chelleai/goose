@@ -43,7 +43,7 @@ class Task[**P, R: Result]:
         else:
             return state.result
 
-    async def jam(
+    async def refine(
         self,
         *,
         user_message: UserMessage,

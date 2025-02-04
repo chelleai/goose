@@ -53,7 +53,7 @@ async def test_jamming() -> None:
 
     # imagine this is a new process
     async with sentence.start_run(run_id="1") as second_run:
-        await generate_random_word.jam(
+        await generate_random_word.refine(
             index=1,
             user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
             context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),

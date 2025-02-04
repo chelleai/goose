@@ -68,7 +68,7 @@ async def test_state_undo() -> None:
         await with_state.generate()
 
     async with with_state.start_run(run_id="2"):
-        await generate_random_word.jam(
+        await generate_random_word.refine(
             index=0,
             user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
             context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),
