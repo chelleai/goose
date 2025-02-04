@@ -54,15 +54,14 @@ async def test_jamming() -> None:
     # imagine this is a new process
     async with sentence.start_run(run_id="1") as second_run:
         await generate_random_word.refine(
-            index=1,
             user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
             context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),
         )
 
     random_words = second_run.get_all(task=generate_random_word)
     assert len(random_words) == 3
-    assert random_words[0].result.word != "__ADAPTED__"  # not adapted
-    assert random_words[1].result.word == "__ADAPTED__"  # adapted
+    assert random_words[0].result.word == "__ADAPTED__"  # adapted
+    assert random_words[1].result.word != "__ADAPTED__"  # not adapted
     assert random_words[2].result.word != "__ADAPTED__"  # not adapted
 
     # imagine this is a new process
@@ -72,5 +71,5 @@ async def test_jamming() -> None:
     resulting_sentence = third_run.get(task=make_sentence)
     assert (
         resulting_sentence.result.sentence
-        == f"{initial_random_words[0].result.word} __ADAPTED__ {initial_random_words[2].result.word}"
+        == f"__ADAPTED__ {initial_random_words[1].result.word} {initial_random_words[2].result.word}"
     )
