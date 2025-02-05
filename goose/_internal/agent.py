@@ -7,7 +7,7 @@ from litellm import acompletion
 from pydantic import BaseModel, computed_field
 
 from .result import Result, TextResult
-from .types.agent import AssistantMessage, GeminiModel, SystemMessage, UserMessage
+from .types.agent import AIModel, AssistantMessage, SystemMessage, UserMessage
 
 
 class AgentResponseDump(TypedDict):
@@ -29,22 +29,28 @@ class AgentResponseDump(TypedDict):
 
 
 class AgentResponse[R: BaseModel | str](BaseModel):
-    INPUT_CENTS_PER_MILLION_TOKENS: ClassVar[dict[GeminiModel, float]] = {
-        GeminiModel.FLASH_8B: 30,
-        GeminiModel.FLASH: 15,
-        GeminiModel.PRO: 500,
+    INPUT_CENTS_PER_MILLION_TOKENS: ClassVar[dict[AIModel, float]] = {
+        AIModel.VERTEX_FLASH_8B: 30,
+        AIModel.VERTEX_FLASH: 15,
+        AIModel.VERTEX_PRO: 500,
+        AIModel.GEMINI_FLASH_8B: 30,
+        AIModel.GEMINI_FLASH: 15,
+        AIModel.GEMINI_PRO: 500,
     }
-    OUTPUT_CENTS_PER_MILLION_TOKENS: ClassVar[dict[GeminiModel, float]] = {
-        GeminiModel.FLASH_8B: 30,
-        GeminiModel.FLASH: 15,
-        GeminiModel.PRO: 500,
+    OUTPUT_CENTS_PER_MILLION_TOKENS: ClassVar[dict[AIModel, float]] = {
+        AIModel.VERTEX_FLASH_8B: 30,
+        AIModel.VERTEX_FLASH: 15,
+        AIModel.VERTEX_PRO: 500,
+        AIModel.GEMINI_FLASH_8B: 30,
+        AIModel.GEMINI_FLASH: 15,
+        AIModel.GEMINI_PRO: 500,
     }
 
     response: R
     run_id: str
     flow_name: str
     task_name: str
-    model: GeminiModel
+    model: AIModel
     system: SystemMessage | None = None
     input_messages: list[UserMessage | AssistantMessage]
     input_tokens: int
@@ -130,7 +136,7 @@ class Agent:
         self,
         *,
         messages: list[UserMessage | AssistantMessage],
-        model: GeminiModel,
+        model: AIModel,
         task_name: str,
         response_model: type[R] = TextResult,
         system: SystemMessage | None = None,

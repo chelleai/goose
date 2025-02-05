@@ -4,10 +4,16 @@ from typing import Literal, NotRequired, TypedDict
 from pydantic import BaseModel
 
 
-class GeminiModel(StrEnum):
-    PRO = "vertex_ai/gemini-1.5-pro"
-    FLASH = "vertex_ai/gemini-1.5-flash"
-    FLASH_8B = "vertex_ai/gemini-1.5-flash-8b"
+class AIModel(StrEnum):
+    # vertex (production Google, requires GCP environment)
+    VERTEX_PRO = "vertex_ai/gemini-1.5-pro"
+    VERTEX_FLASH = "vertex_ai/gemini-1.5-flash"
+    VERTEX_FLASH_8B = "vertex_ai/gemini-1.5-flash-8b"
+
+    # gemini (publicly available, no GCP environment required)
+    GEMINI_PRO = "gemini/gemini-1.5-pro"
+    GEMINI_FLASH = "gemini/gemini-1.5-flash"
+    GEMINI_FLASH_8B = "gemini/gemini-1.5-flash-8b"
 
 
 class UserMediaContentType(StrEnum):
