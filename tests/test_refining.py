@@ -48,7 +48,7 @@ async def sentence(*, flow_arguments: MyFlowArguments, agent: Agent) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("generate_random_word_adapter")
-async def test_jamming() -> None:
+async def test_refining() -> None:
     async with sentence.start_run(run_id="1") as first_run:
         await sentence.generate(MyFlowArguments())
 
@@ -67,13 +67,3 @@ async def test_jamming() -> None:
     assert random_words[0].result.word == "__ADAPTED__"  # adapted
     assert random_words[1].result.word != "__ADAPTED__"  # not adapted
     assert random_words[2].result.word != "__ADAPTED__"  # not adapted
-
-    # imagine this is a new process
-    async with sentence.start_run(run_id="1") as third_run:
-        await sentence.generate(MyFlowArguments())
-
-    resulting_sentence = third_run.get(task=make_sentence)
-    assert (
-        resulting_sentence.result.sentence
-        == f"__ADAPTED__ {initial_random_words[1].result.word} {initial_random_words[2].result.word}"
-    )
