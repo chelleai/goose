@@ -1,7 +1,7 @@
 from ._internal.agent import AgentResponse, IAgentLogger
 from ._internal.types.agent import (
+    AIModel,
     AssistantMessage,
-    GeminiModel,
     LLMMediaMessagePart,
     LLMMessage,
     LLMTextMessagePart,
@@ -14,9 +14,9 @@ from ._internal.types.agent import (
 
 __all__ = [
     "AgentResponse",
+    "AIModel",
     "IAgentLogger",
     "AssistantMessage",
-    "GeminiModel",
     "LLMMediaMessagePart",
     "LLMMessage",
     "LLMTextMessagePart",

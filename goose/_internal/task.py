@@ -5,7 +5,7 @@ from typing import Any, overload
 from pydantic import BaseModel
 
 from ..errors import Honk
-from .agent import Agent, GeminiModel, SystemMessage, UserMessage
+from .agent import Agent, AIModel, SystemMessage, UserMessage
 from .conversation import Conversation
 from .result import Result, TextResult
 from .state import FlowRun, NodeState, get_current_flow_run
@@ -19,7 +19,7 @@ class Task[**P, R: Result]:
         /,
         *,
         retries: int = 0,
-        adapter_model: GeminiModel = GeminiModel.FLASH,
+        adapter_model: AIModel = AIModel.GEMINI_FLASH,
     ) -> None:
         self._generator = generator
         self._retries = retries
@@ -145,14 +145,14 @@ class Task[**P, R: Result]:
 def task[**P, R: Result](generator: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
 @overload
 def task[**P, R: Result](
-    *, retries: int = 0, adapter_model: GeminiModel = GeminiModel.FLASH
+    *, retries: int = 0, adapter_model: AIModel = AIModel.GEMINI_FLASH
 ) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
 def task[**P, R: Result](
     generator: Callable[P, Awaitable[R]] | None = None,
     /,
     *,
     retries: int = 0,
-    adapter_model: GeminiModel = GeminiModel.FLASH,
+    adapter_model: AIModel = AIModel.GEMINI_FLASH,
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if generator is None:
 
