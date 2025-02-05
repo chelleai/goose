@@ -1,6 +1,6 @@
 [project]
 name = "goose-py"
-version = "0.9.5"
+version = "0.9.6"
 description = "A tool for AI workflows based on human-computer collaboration and structured output."
 readme = "README.md"
 authors = [
@@ -34,7 +34,6 @@ dev = [
 
 [tool.ruff]
 exclude = [
-    "__init__.py",
     ".venv",
     "**/.venv",
     "notebooks",
@@ -67,7 +66,7 @@ reportUnknownVariableType = false
 stubPath = ".stubs"
 venvPath = "."
 venv = ".venv"
-exclude = ["goose/__init__.py", ".venv", "notebooks"]
+exclude = [".venv", "notebooks"]
 
 [tool.pytest.ini_options]
 filterwarnings = [
