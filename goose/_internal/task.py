@@ -4,12 +4,12 @@ from typing import Any, overload
 
 from pydantic import BaseModel
 
-from goose._internal.agent import Agent, GeminiModel, SystemMessage, UserMessage
-from goose._internal.conversation import Conversation
-from goose._internal.result import Result, TextResult
-from goose._internal.state import FlowRun, NodeState, get_current_flow_run
-from goose._internal.types.agent import AssistantMessage
-from goose.errors import Honk
+from ..errors import Honk
+from .agent import Agent, GeminiModel, SystemMessage, UserMessage
+from .conversation import Conversation
+from .result import Result, TextResult
+from .state import FlowRun, NodeState, get_current_flow_run
+from .types.agent import AssistantMessage
 
 
 class Task[**P, R: Result]:

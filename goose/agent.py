@@ -1,5 +1,5 @@
-from goose._internal.agent import AgentResponse, IAgentLogger
-from goose._internal.types.agent import (
+from ._internal.agent import AgentResponse, IAgentLogger
+from ._internal.types.agent import (
     AssistantMessage,
     GeminiModel,
     LLMMediaMessagePart,

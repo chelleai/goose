@@ -3,12 +3,12 @@ from contextlib import asynccontextmanager
 from types import CodeType
 from typing import Protocol, overload
 
-from goose._internal.agent import Agent, IAgentLogger
-from goose._internal.conversation import Conversation
-from goose._internal.result import Result
-from goose._internal.state import FlowArguments, FlowRun, get_current_flow_run, set_current_flow_run
-from goose._internal.store import IFlowRunStore, InMemoryFlowRunStore
-from goose.errors import Honk
+from ..errors import Honk
+from .agent import Agent, IAgentLogger
+from .conversation import Conversation
+from .result import Result
+from .state import FlowArguments, FlowRun, get_current_flow_run, set_current_flow_run
+from .store import IFlowRunStore, InMemoryFlowRunStore
 
 
 class IGenerator[FlowArgumentsT: FlowArguments](Protocol):
