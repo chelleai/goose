@@ -1,5 +1,8 @@
+import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any, overload
+
+from pydantic import BaseModel
 
 from goose._internal.agent import Agent, GeminiModel, SystemMessage, UserMessage
 from goose._internal.conversation import Conversation
@@ -105,11 +108,31 @@ class Task[**P, R: Result]:
         )
 
     def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> int:
-        try:
-            to_hash = str(tuple(args) + tuple(kwargs.values()) + (self._generator.__code__, self._adapter_model))
-            return hash(to_hash)
-        except TypeError:
-            raise Honk(f"Unhashable argument to task {self.name}: {args} {kwargs}")
+        def update_hash(argument: Any, current_hash: Any = hashlib.sha256()) -> None:
+            try:
+                if isinstance(argument, list | tuple | set):
+                    for item in argument:
+                        update_hash(item, current_hash)
+                elif isinstance(argument, dict):
+                    for key, value in argument.items():
+                        update_hash(key, current_hash)
+                        update_hash(value, current_hash)
+                elif isinstance(argument, BaseModel):
+                    update_hash(argument.model_dump_json())
+                elif isinstance(argument, bytes):
+                    current_hash.update(argument)
+                elif isinstance(argument, Agent):
+                    current_hash.update(b"AGENT")
+                else:
+                    current_hash.update(str(argument).encode())
+            except TypeError:
+                raise Honk(f"Unhashable argument to task {self.name}: {argument}")
+
+        result = hashlib.sha256()
+        update_hash(args, result)
+        update_hash(kwargs, result)
+
+        return int(result.hexdigest(), 16)
 
     def __get_current_flow_run(self) -> FlowRun[Any]:
         run = get_current_flow_run()
