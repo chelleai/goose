@@ -4,15 +4,15 @@ from typing import TYPE_CHECKING, Any, NewType, Self
 
 from pydantic import BaseModel, ConfigDict
 
-from goose._internal.agent import (
+from ..errors import Honk
+from .agent import (
     Agent,
     IAgentLogger,
     SystemMessage,
     UserMessage,
 )
-from goose._internal.conversation import Conversation
-from goose._internal.result import Result
-from goose.errors import Honk
+from .conversation import Conversation
+from .result import Result
 
 if TYPE_CHECKING:
     from goose._internal.task import Task

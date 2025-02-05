@@ -6,13 +6,8 @@ from typing import Any, ClassVar, Protocol, TypedDict
 from litellm import acompletion
 from pydantic import BaseModel, computed_field
 
-from goose._internal.result import Result, TextResult
-from goose._internal.types.agent import (
-    AssistantMessage,
-    GeminiModel,
-    SystemMessage,
-    UserMessage,
-)
+from .result import Result, TextResult
+from .types.agent import AssistantMessage, GeminiModel, SystemMessage, UserMessage
 
 
 class AgentResponseDump(TypedDict):

@@ -2,8 +2,8 @@ from typing import Self
 
 from pydantic import BaseModel
 
-from goose._internal.result import Result
-from goose._internal.types.agent import AssistantMessage, LLMMessage, SystemMessage, UserMessage
+from .result import Result
+from .types.agent import AssistantMessage, LLMMessage, SystemMessage, UserMessage
 
 
 class Conversation[R: Result](BaseModel):

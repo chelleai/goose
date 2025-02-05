@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from goose._internal.state import SerializedFlowRun
+from .state import SerializedFlowRun
 
 
 class IFlowRunStore(Protocol):
