@@ -1,7 +1,14 @@
+import base64
 from enum import StrEnum
 from typing import Literal, NotRequired, TypedDict
 
 from pydantic import BaseModel
+
+
+class Base64MediaContent(str):
+    @classmethod
+    def from_bytes(cls, content: bytes, /) -> "Base64MediaContent":
+        return cls(base64.b64encode(content).decode())
 
 
 class AIModel(StrEnum):
@@ -59,7 +66,7 @@ class TextMessagePart(BaseModel):
 
 class MediaMessagePart(BaseModel):
     content_type: UserMediaContentType
-    content: str
+    content: Base64MediaContent
 
     def render(self) -> LLMMediaMessagePart:
         return {
