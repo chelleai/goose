@@ -7,6 +7,7 @@ from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
 from goose.agent import SystemMessage, TextMessagePart, UserMessage
+from goose.errors import Honk
 
 
 class MyFlowArguments(FlowArguments):
@@ -67,3 +68,14 @@ async def test_refining() -> None:
     assert random_words[0].result.word == "__ADAPTED__"  # adapted
     assert random_words[1].result.word != "__ADAPTED__"  # not adapted
     assert random_words[2].result.word != "__ADAPTED__"  # not adapted
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("generate_random_word_adapter")
+async def test_refining_before_generate_fails() -> None:
+    with pytest.raises(Honk):
+        async with sentence.start_run(run_id="2"):
+            await generate_random_word.refine(
+                user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
+                context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),
+            )

@@ -56,6 +56,9 @@ class Task[**P, R: Result]:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get(task=self, index=index)
 
+        if len(node_state.conversation.result_messages) == 0:
+            raise Honk("Cannot refine a task that has not been initially generated")
+
         if context is not None:
             node_state.set_context(context=context)
         node_state.add_user_message(message=user_message)
