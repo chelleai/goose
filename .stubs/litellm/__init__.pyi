@@ -4,9 +4,11 @@ _LiteLLMGeminiModel = Literal[
     "vertex_ai/gemini-1.5-flash",
     "vertex_ai/gemini-1.5-pro",
     "vertex_ai/gemini-1.5-flash-8b",
+    "vertex_ai/gemini-2.0-flash",
     "gemini/gemini-1.5-flash",
     "gemini/gemini-1.5-pro",
     "gemini/gemini-1.5-flash-8b",
+    "gemini/gemini-2.0-flash",
 ]
 _MessageRole = Literal["system", "user", "assistant"]
 

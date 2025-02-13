@@ -234,7 +234,7 @@ wheels = [
 
 [[package]]
 name = "goose-py"
-version = "0.9.10"
+version = "0.9.13"
 source = { editable = "." }
 dependencies = [
     { name = "jsonpath-ng" },
