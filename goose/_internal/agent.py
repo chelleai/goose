@@ -153,11 +153,7 @@ class Agent:
             response = await acompletion(
                 model=model.value,
                 messages=rendered_messages,
-                response_format={
-                    "type": "json_object",
-                    "response_schema": response_model.model_json_schema(),
-                    "enforce_validation": True,
-                },
+                response_format=response_model,
             )
             parsed_response = response_model.model_validate_json(response.choices[0].message.content)
 

@@ -1,4 +1,5 @@
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
+from pydantic import BaseModel
 
 _LiteLLMGeminiModel = Literal[
     "vertex_ai/gemini-1.5-flash",
@@ -28,11 +29,6 @@ class _LiteLLMMessage(TypedDict):
     content: list[_LiteLLMTextMessageContent | _LiteLLMMediaMessageContent]
     cache_control: NotRequired[_LiteLLMCacheControl]
 
-class _LiteLLMResponseFormat(TypedDict):
-    type: Literal["json_object"]
-    response_schema: dict[str, Any]  # must be a valid JSON schema
-    enforce_validation: NotRequired[bool]
-
 class _LiteLLMModelResponseChoiceMessage:
     role: Literal["assistant"]
     content: str
@@ -60,7 +56,7 @@ async def acompletion(
     *,
     model: _LiteLLMGeminiModel,
     messages: list[_LiteLLMMessage],
-    response_format: _LiteLLMResponseFormat | None = None,
+    response_format: type[BaseModel] | None = None,
     max_tokens: int | None = None,
     temperature: float = 1.0,
 ) -> ModelResponse: ...
