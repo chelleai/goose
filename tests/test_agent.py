@@ -4,7 +4,8 @@ import pytest
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, TextResult, flow, task
-from goose.agent import AgentResponse, AIModel, IAgentLogger, TextMessagePart, UserMessage
+from goose._internal.types.agent import MessagePart
+from goose.agent import AgentResponse, AIModel, IAgentLogger, UserMessage
 
 
 class TestFlowArguments(FlowArguments):
@@ -28,7 +29,7 @@ def mock_litellm(mocker: MockerFixture) -> Mock:
 @task
 async def use_agent(*, agent: Agent) -> TextResult:
     return await agent(
-        messages=[UserMessage(parts=[TextMessagePart(text="Hello")])],
+        messages=[UserMessage(parts=[MessagePart(content="Hello")])],
         model=AIModel.GEMINI_FLASH_8B,
         task_name="greet",
     )

@@ -1,19 +1,8 @@
 import base64
 from enum import StrEnum
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
-from pydantic import BaseModel, GetCoreSchemaHandler
-from pydantic_core import CoreSchema, core_schema
-
-
-class Base64MediaContent(str):
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: GetCoreSchemaHandler) -> CoreSchema:
-        return core_schema.no_info_after_validator_function(cls, handler(str))
-
-    @classmethod
-    def from_bytes(cls, content: bytes, /) -> "Base64MediaContent":
-        return cls(base64.b64encode(content).decode())
+from pydantic import BaseModel
 
 
 class AIModel(StrEnum):
@@ -30,7 +19,10 @@ class AIModel(StrEnum):
     GEMINI_FLASH_2_0 = "gemini/gemini-2.0-flash"
 
 
-class UserMediaContentType(StrEnum):
+class ContentType(StrEnum):
+    # text
+    TEXT = "text/plain"
+
     # images
     JPEG = "image/jpeg"
     PNG = "image/png"
@@ -64,33 +56,30 @@ class LLMMessage(TypedDict):
     cache_control: NotRequired[CacheControl]
 
 
-class TextMessagePart(BaseModel):
-    text: str
+class MessagePart(BaseModel):
+    content: str
+    content_type: ContentType = ContentType.TEXT
 
-    def render(self) -> LLMTextMessagePart:
-        return {"type": "text", "text": self.text}
+    @classmethod
+    def from_media(cls, *, content: bytes, content_type: ContentType) -> "MessagePart":
+        return cls(content=base64.b64encode(content).decode(), content_type=content_type)
 
-
-class MediaMessagePart(BaseModel):
-    content_type: UserMediaContentType
-    content: Base64MediaContent
-
-    def render(self) -> LLMMediaMessagePart:
-        return {
-            "type": "image_url",
-            "image_url": f"data:{self.content_type};base64,{self.content}",
-        }
+    def render(self) -> LLMTextMessagePart | LLMMediaMessagePart:
+        if self.content_type == ContentType.TEXT:
+            return {"type": "text", "text": self.content}
+        else:
+            return {"type": "image_url", "image_url": f"data:{self.content_type};base64,{self.content}"}
 
 
 class UserMessage(BaseModel):
-    parts: list[TextMessagePart | MediaMessagePart]
+    parts: list[MessagePart]
 
     def render(self) -> LLMMessage:
         content: LLMMessage = {
             "role": "user",
             "content": [part.render() for part in self.parts],
         }
-        if any(isinstance(part, MediaMessagePart) for part in self.parts):
+        if any(part.content_type != ContentType.TEXT for part in self.parts):
             content["cache_control"] = {"type": "ephemeral"}
         return content
 
@@ -103,7 +92,7 @@ class AssistantMessage(BaseModel):
 
 
 class SystemMessage(BaseModel):
-    parts: list[TextMessagePart | MediaMessagePart]
+    parts: list[MessagePart]
 
     def render(self) -> LLMMessage:
         return {

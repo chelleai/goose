@@ -6,7 +6,8 @@ import pytest
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
-from goose.agent import SystemMessage, TextMessagePart, UserMessage
+from goose._internal.types.agent import MessagePart
+from goose.agent import SystemMessage, UserMessage
 from goose.errors import Honk
 
 
@@ -59,8 +60,8 @@ async def test_refining() -> None:
     # imagine this is a new process
     async with sentence.start_run(run_id="1") as second_run:
         await generate_random_word.refine(
-            user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
-            context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),
+            user_message=UserMessage(parts=[MessagePart(content="Change it")]),
+            context=SystemMessage(parts=[MessagePart(content="Extra info")]),
         )
 
     random_words = second_run.get_all(task=generate_random_word)
@@ -76,6 +77,6 @@ async def test_refining_before_generate_fails() -> None:
     with pytest.raises(Honk):
         async with sentence.start_run(run_id="2"):
             await generate_random_word.refine(
-                user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
-                context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),
+                user_message=UserMessage(parts=[MessagePart(content="Change it")]),
+                context=SystemMessage(parts=[MessagePart(content="Extra info")]),
             )

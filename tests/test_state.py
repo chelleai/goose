@@ -6,7 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
-from goose._internal.types.agent import SystemMessage, TextMessagePart, UserMessage
+from goose._internal.types.agent import MessagePart, SystemMessage, UserMessage
 from goose.errors import Honk
 
 
@@ -74,8 +74,8 @@ async def test_state_undo() -> None:
     async with with_state.start_run(run_id="2"):
         await generate_random_word.refine(
             index=0,
-            user_message=UserMessage(parts=[TextMessagePart(text="Change it")]),
-            context=SystemMessage(parts=[TextMessagePart(text="Extra info")]),
+            user_message=UserMessage(parts=[MessagePart(content="Change it")]),
+            context=SystemMessage(parts=[MessagePart(content="Extra info")]),
         )
 
     async with with_state.start_run(run_id="2") as run:
