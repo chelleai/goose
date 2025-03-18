@@ -4,15 +4,11 @@ from typing import TYPE_CHECKING, Any, NewType, Self
 
 from pydantic import BaseModel, ConfigDict
 
-from ..errors import Honk
-from .agent import (
-    Agent,
-    IAgentLogger,
-    SystemMessage,
-    UserMessage,
-)
-from .conversation import Conversation
-from .result import Result
+from goose._internal.agent import Agent, IAgentLogger
+from goose._internal.conversation import Conversation
+from goose._internal.result import Result
+from goose._internal.types.agent import SystemMessage, UserMessage
+from goose.errors import Honk
 
 if TYPE_CHECKING:
     from goose._internal.task import Task
@@ -32,10 +28,11 @@ class NodeState[ResultT: Result](BaseModel):
 
     @property
     def result(self) -> ResultT:
-        if len(self.conversation.result_messages) == 0:
-            raise Honk("Node awaiting response, has no result")
+        for message in reversed(self.conversation.assistant_messages):
+            if isinstance(message, Result):
+                return message
 
-        return self.conversation.result_messages[-1]
+        raise Honk("Node awaiting response, has no result")
 
     def set_context(self, *, context: SystemMessage) -> Self:
         self.conversation.context = context
@@ -48,12 +45,16 @@ class NodeState[ResultT: Result](BaseModel):
         new_hash: int | None = None,
         overwrite: bool = False,
     ) -> Self:
-        if overwrite and len(self.conversation.result_messages) > 0:
-            self.conversation.result_messages[-1] = result
+        if overwrite and len(self.conversation.assistant_messages) > 0:
+            self.conversation.assistant_messages[-1] = result
         else:
-            self.conversation.result_messages.append(result)
+            self.conversation.assistant_messages.append(result)
         if new_hash is not None:
             self.last_hash = new_hash
+        return self
+
+    def add_answer(self, *, answer: str) -> Self:
+        self.conversation.assistant_messages.append(answer)
         return self
 
     def add_user_message(self, *, message: UserMessage) -> Self:
@@ -61,11 +62,16 @@ class NodeState[ResultT: Result](BaseModel):
         return self
 
     def edit_last_result(self, *, result: ResultT) -> Self:
-        if len(self.conversation.result_messages) == 0:
+        if len(self.conversation.assistant_messages) == 0:
             raise Honk("Node awaiting response, has no result")
 
-        self.conversation.result_messages[-1] = result
-        return self
+        for message_index, message in enumerate(reversed(self.conversation.assistant_messages)):
+            if isinstance(message, Result):
+                index = len(self.conversation.assistant_messages) - message_index - 1
+                self.conversation.assistant_messages[index] = result
+                return self
+
+        raise Honk("Node awaiting response, has no result")
 
     def undo(self) -> Self:
         self.conversation.undo()
@@ -117,7 +123,7 @@ class FlowRun[FlowArgumentsT: FlowArguments]:
             return NodeState[task.result_type](
                 task_name=task.name,
                 index=index,
-                conversation=Conversation[task.result_type](user_messages=[], result_messages=[]),
+                conversation=Conversation[task.result_type](user_messages=[], assistant_messages=[]),
                 last_hash=0,
             )
 
