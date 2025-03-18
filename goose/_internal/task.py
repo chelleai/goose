@@ -59,6 +59,7 @@ class Task[**P, R: Result]:
             system=context.render() if context is not None else None,
         )
         node_state.add_answer(answer=answer.text)
+        flow_run.upsert_node_state(node_state)
 
         return answer.text
 
