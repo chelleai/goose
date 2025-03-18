@@ -7,7 +7,7 @@ from litellm import acompletion
 from pydantic import BaseModel, computed_field
 
 from .result import Result, TextResult
-from .types.agent import AIModel, AssistantMessage, SystemMessage, UserMessage
+from .types.agent import AIModel, LLMMessage
 
 
 class AgentResponseDump(TypedDict):
@@ -51,8 +51,8 @@ class AgentResponse[R: BaseModel | str](BaseModel):
     flow_name: str
     task_name: str
     model: AIModel
-    system: SystemMessage | None = None
-    input_messages: list[UserMessage | AssistantMessage]
+    system: LLMMessage | None = None
+    input_messages: list[LLMMessage]
     input_tokens: int
     output_tokens: int
     start_time: datetime
@@ -82,13 +82,13 @@ class AgentResponse[R: BaseModel | str](BaseModel):
         if self.system is None:
             minimized_system_message = ""
         else:
-            minimized_system_message = self.system.render()
+            minimized_system_message = self.system
             for part in minimized_system_message["content"]:
                 if part["type"] == "image_url":
                     part["image_url"] = "__MEDIA__"
             minimized_system_message = json.dumps(minimized_system_message)
 
-        minimized_input_messages = [message.render() for message in self.input_messages]
+        minimized_input_messages = [message for message in self.input_messages]
         for message in minimized_input_messages:
             for part in message["content"]:
                 if part["type"] == "image_url":
@@ -135,24 +135,23 @@ class Agent:
     async def __call__[R: Result](
         self,
         *,
-        messages: list[UserMessage | AssistantMessage],
+        messages: list[LLMMessage],
         model: AIModel,
         task_name: str,
         response_model: type[R] = TextResult,
-        system: SystemMessage | None = None,
+        system: LLMMessage | None = None,
     ) -> R:
         start_time = datetime.now()
-        rendered_messages = [message.render() for message in messages]
         if system is not None:
-            rendered_messages.insert(0, system.render())
+            messages.insert(0, system)
 
         if response_model is TextResult:
-            response = await acompletion(model=model.value, messages=rendered_messages)
+            response = await acompletion(model=model.value, messages=messages)
             parsed_response = response_model.model_validate({"text": response.choices[0].message.content})
         else:
             response = await acompletion(
                 model=model.value,
-                messages=rendered_messages,
+                messages=messages,
                 response_format=response_model,
             )
             parsed_response = response_model.model_validate_json(response.choices[0].message.content)

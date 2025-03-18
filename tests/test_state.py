@@ -29,11 +29,10 @@ async def generate_random_word(*, n_characters: int) -> GeneratedWord:
 
 @pytest.fixture
 def generate_random_word_adapter(mocker: MockerFixture) -> Mock:
-    return mocker.patch.object(
-        generate_random_word,
-        "_Task__adapt",
-        return_value=GeneratedWord(word="__ADAPTED__"),
-    )
+    mock_result = GeneratedWord(word="__REFINED__")
+    mock = mocker.patch("goose._internal.agent.Agent.__call__", autospec=True)
+    mock.return_value = mock_result
+    return mock
 
 
 @task
@@ -81,7 +80,7 @@ async def test_state_undo() -> None:
     async with with_state.start_run(run_id="2") as run:
         generate_random_word.undo()
 
-    assert run.get(task=generate_random_word).result.word != "__ADAPTED__"
+    assert run.get(task=generate_random_word).result.word != "__REFINED__"
 
 
 @pytest.mark.asyncio

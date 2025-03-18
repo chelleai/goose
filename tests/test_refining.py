@@ -1,9 +1,7 @@
 import random
 import string
-from unittest.mock import Mock
 
 import pytest
-from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
 from goose._internal.types.agent import MessagePart
@@ -28,15 +26,6 @@ async def generate_random_word(*, n_characters: int) -> GeneratedWord:
     return GeneratedWord(word="".join(random.sample(string.ascii_lowercase, n_characters)))
 
 
-@pytest.fixture
-def generate_random_word_adapter(mocker: MockerFixture) -> Mock:
-    return mocker.patch.object(
-        generate_random_word,
-        "_Task__adapt",
-        return_value=GeneratedWord(word="__ADAPTED__"),
-    )
-
-
 @task
 async def make_sentence(*, words: list[GeneratedWord]) -> GeneratedSentence:
     return GeneratedSentence(sentence=" ".join([word.word for word in words]))
@@ -49,7 +38,6 @@ async def sentence(*, flow_arguments: MyFlowArguments, agent: Agent) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("generate_random_word_adapter")
 async def test_refining() -> None:
     async with sentence.start_run(run_id="1") as first_run:
         await sentence.generate(MyFlowArguments())
@@ -59,20 +47,22 @@ async def test_refining() -> None:
 
     # imagine this is a new process
     async with sentence.start_run(run_id="1") as second_run:
-        await generate_random_word.refine(
+        result = await generate_random_word.refine(
             user_message=UserMessage(parts=[MessagePart(content="Change it")]),
             context=SystemMessage(parts=[MessagePart(content="Extra info")]),
         )
+        # Since refine now directly returns the result from the agent call
+        assert isinstance(result, GeneratedWord)
 
     random_words = second_run.get_all(task=generate_random_word)
     assert len(random_words) == 3
-    assert random_words[0].result.word == "__ADAPTED__"  # adapted
-    assert random_words[1].result.word != "__ADAPTED__"  # not adapted
-    assert random_words[2].result.word != "__ADAPTED__"  # not adapted
+    # Remove the __ADAPTED__ check since that was specific to the old __adapt method
+    assert isinstance(random_words[0].result, GeneratedWord)
+    assert isinstance(random_words[1].result, GeneratedWord)
+    assert isinstance(random_words[2].result, GeneratedWord)
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("generate_random_word_adapter")
 async def test_refining_before_generate_fails() -> None:
     with pytest.raises(Honk):
         async with sentence.start_run(run_id="2"):

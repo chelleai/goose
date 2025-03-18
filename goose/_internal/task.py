@@ -5,11 +5,10 @@ from typing import Any, overload
 from pydantic import BaseModel
 
 from ..errors import Honk
-from .agent import Agent, AIModel, SystemMessage, UserMessage
-from .conversation import Conversation
-from .result import Result, TextResult
+from .agent import Agent, AIModel
+from .result import Result
 from .state import FlowRun, NodeState, get_current_flow_run
-from .types.agent import AssistantMessage
+from .types.agent import SystemMessage, UserMessage
 
 
 class Task[**P, R: Result]:
@@ -19,12 +18,11 @@ class Task[**P, R: Result]:
         /,
         *,
         retries: int = 0,
-        adapter_model: AIModel = AIModel.GEMINI_FLASH,
+        refinement_model: AIModel = AIModel.GEMINI_FLASH,
     ) -> None:
         self._generator = generator
         self._retries = retries
-        self._adapter_model = adapter_model
-        self._adapter_model = adapter_model
+        self._refinement_model = refinement_model
 
     @property
     def result_type(self) -> type[R]:
@@ -46,6 +44,24 @@ class Task[**P, R: Result]:
         else:
             return state.result
 
+    async def ask(self, *, user_message: UserMessage, context: SystemMessage | None = None, index: int = 0) -> str:
+        flow_run = self.__get_current_flow_run()
+        node_state = flow_run.get(task=self, index=index)
+
+        if len(node_state.conversation.assistant_messages) == 0:
+            raise Honk("Cannot ask about a task that has not been initially generated")
+
+        node_state.add_user_message(message=user_message)
+        answer = await flow_run.agent(
+            messages=node_state.conversation.render(),
+            model=self._refinement_model,
+            task_name=f"ask--{self.name}",
+            system=context.render() if context is not None else None,
+        )
+        node_state.add_answer(answer=answer.text)
+
+        return answer.text
+
     async def refine(
         self,
         *,
@@ -56,14 +72,20 @@ class Task[**P, R: Result]:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get(task=self, index=index)
 
-        if len(node_state.conversation.result_messages) == 0:
+        if len(node_state.conversation.assistant_messages) == 0:
             raise Honk("Cannot refine a task that has not been initially generated")
 
         if context is not None:
             node_state.set_context(context=context)
         node_state.add_user_message(message=user_message)
 
-        result = await self.__adapt(conversation=node_state.conversation, agent=flow_run.agent)
+        result = await flow_run.agent(
+            messages=node_state.conversation.render(),
+            model=self._refinement_model,
+            task_name=f"refine--{self.name}",
+            system=context.render() if context is not None else None,
+            response_model=self.result_type,
+        )
         node_state.add_result(result=result)
         flow_run.upsert_node_state(node_state)
 
@@ -87,28 +109,6 @@ class Task[**P, R: Result]:
         result = await self.generate(node_state, *args, **kwargs)
         flow_run.upsert_node_state(node_state)
         return result
-
-    async def __adapt(self, *, conversation: Conversation[R], agent: Agent) -> R:
-        messages: list[UserMessage | AssistantMessage] = []
-        for message_index in range(len(conversation.user_messages)):
-            user_message = conversation.user_messages[message_index]
-            result = conversation.result_messages[message_index]
-
-            if isinstance(result, TextResult):
-                assistant_text = result.text
-            else:
-                assistant_text = result.model_dump_json()
-            assistant_message = AssistantMessage(text=assistant_text)
-            messages.append(assistant_message)
-            messages.append(user_message)
-
-        return await agent(
-            messages=messages,
-            model=self._adapter_model,
-            task_name=f"adapt--{self.name}",
-            system=conversation.context,
-            response_model=self.result_type,
-        )
 
     def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> int:
         def update_hash(argument: Any, current_hash: Any = hashlib.sha256()) -> None:
@@ -148,20 +148,20 @@ class Task[**P, R: Result]:
 def task[**P, R: Result](generator: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
 @overload
 def task[**P, R: Result](
-    *, retries: int = 0, adapter_model: AIModel = AIModel.GEMINI_FLASH
+    *, retries: int = 0, refinement_model: AIModel = AIModel.GEMINI_FLASH
 ) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
 def task[**P, R: Result](
     generator: Callable[P, Awaitable[R]] | None = None,
     /,
     *,
     retries: int = 0,
-    adapter_model: AIModel = AIModel.GEMINI_FLASH,
+    refinement_model: AIModel = AIModel.GEMINI_FLASH,
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if generator is None:
 
         def decorator(fn: Callable[P, Awaitable[R]]) -> Task[P, R]:
-            return Task(fn, retries=retries, adapter_model=adapter_model)
+            return Task(fn, retries=retries, refinement_model=refinement_model)
 
         return decorator
 
-    return Task(generator, retries=retries, adapter_model=adapter_model)
+    return Task(generator, retries=retries, refinement_model=refinement_model)
