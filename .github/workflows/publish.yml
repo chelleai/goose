@@ -45,4 +45,3 @@ jobs:
 
       - name: Publish package
         run: uv publish
-        continue-on-error: true
