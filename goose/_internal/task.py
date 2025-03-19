@@ -87,6 +87,7 @@ class Task[**P, R: Result]:
             task_name=f"refine--{self.name}",
             system=context.render() if context is not None else None,
             response_model=self.result_type,
+            mode="refine",
         )
         node_state.add_result(result=result)
         flow_run.upsert_node_state(node_state)
