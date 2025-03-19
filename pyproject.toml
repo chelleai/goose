@@ -1,6 +1,6 @@
 [project]
 name = "goose-py"
-version = "0.9.16"
+version = "0.10.0"
 description = "A tool for AI workflows based on human-computer collaboration and structured output."
 readme = "README.md"
 authors = [
@@ -24,6 +24,7 @@ packages = ["goose"]
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.5",
     "pyright>=1.1.393",
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.3",

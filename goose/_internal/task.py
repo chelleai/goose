@@ -57,11 +57,12 @@ class Task[**P, R: Result]:
             model=self._refinement_model,
             task_name=f"ask--{self.name}",
             system=context.render() if context is not None else None,
+            mode="ask",
         )
-        node_state.add_answer(answer=answer.text)
+        node_state.add_answer(answer=answer)
         flow_run.upsert_node_state(node_state)
 
-        return answer.text
+        return answer
 
     async def refine(
         self,
