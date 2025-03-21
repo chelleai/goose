@@ -3,10 +3,10 @@ import string
 from unittest.mock import Mock
 
 import pytest
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
-from goose._internal.types.agent import MessagePart, SystemMessage, UserMessage
 from goose.errors import Honk
 
 
@@ -51,7 +51,7 @@ async def test_state_causes_caching() -> None:
     async with with_state.start_run(run_id="1") as run:
         await with_state.generate(MyFlowArguments(n_characters=10))
 
-    random_word = run.get(task=generate_random_word).result.word
+    random_word = run.get_result(task=generate_random_word)
 
     with pytest.raises(Honk):
         with_state.current_run
@@ -59,7 +59,7 @@ async def test_state_causes_caching() -> None:
     async with with_state.start_run(run_id="1") as new_run:
         await with_state.generate(MyFlowArguments(n_characters=10))
 
-    new_random_word = new_run.get(task=generate_random_word).result.word
+    new_random_word = new_run.get_result(task=generate_random_word)
 
     assert random_word == new_random_word  # unchanged node is not re-generated
 
@@ -73,14 +73,14 @@ async def test_state_undo() -> None:
     async with with_state.start_run(run_id="2"):
         await generate_random_word.refine(
             index=0,
-            user_message=UserMessage(parts=[MessagePart(content="Change it")]),
-            context=SystemMessage(parts=[MessagePart(content="Extra info")]),
+            user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
+            context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
         )
 
     async with with_state.start_run(run_id="2") as run:
         generate_random_word.undo()
 
-    assert run.get(task=generate_random_word).result.word != "__REFINED__"
+    assert run.get_result(task=generate_random_word).word != "__REFINED__"
 
 
 @pytest.mark.asyncio
@@ -91,4 +91,4 @@ async def test_state_edit() -> None:
     async with with_state.start_run(run_id="3") as run:
         generate_random_word.edit(result=GeneratedWord(word="__EDITED__"), index=0)
 
-    assert run.get(task=generate_random_word).result.word == "__EDITED__"
+    assert run.get_result(task=generate_random_word).word == "__EDITED__"

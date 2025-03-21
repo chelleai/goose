@@ -2,12 +2,12 @@ import json
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, NewType, Self
 
+from aikernel import LLMAssistantMessage, LLMSystemMessage, LLMUserMessage
 from pydantic import BaseModel, ConfigDict
 
 from goose._internal.agent import Agent, IAgentLogger
 from goose._internal.conversation import Conversation
 from goose._internal.result import Result
-from goose._internal.types.agent import SystemMessage, UserMessage
 from goose.errors import Honk
 
 if TYPE_CHECKING:
@@ -20,55 +20,55 @@ class FlowArguments(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class NodeState[ResultT: Result](BaseModel):
+class NodeState(BaseModel):
     task_name: str
     index: int
-    conversation: Conversation[ResultT]
+    conversation: Conversation
     last_hash: int
 
     @property
-    def result(self) -> ResultT:
+    def raw_result(self) -> str:
         for message in reversed(self.conversation.assistant_messages):
-            if isinstance(message, Result):
-                return message
+            if self.__message_is_result(message):
+                return message.parts[0].content
 
         raise Honk("Node awaiting response, has no result")
 
-    def set_context(self, *, context: SystemMessage) -> Self:
+    def set_context(self, *, context: LLMSystemMessage) -> Self:
         self.conversation.context = context
         return self
 
     def add_result(
         self,
         *,
-        result: ResultT,
+        result: str,
         new_hash: int | None = None,
         overwrite: bool = False,
     ) -> Self:
         if overwrite and len(self.conversation.assistant_messages) > 0:
-            self.conversation.assistant_messages[-1] = result
+            self.conversation.assistant_messages[-1] = LLMAssistantMessage.from_text(result)
         else:
-            self.conversation.assistant_messages.append(result)
+            self.conversation.assistant_messages.append(LLMAssistantMessage.from_text(result))
         if new_hash is not None:
             self.last_hash = new_hash
         return self
 
     def add_answer(self, *, answer: str) -> Self:
-        self.conversation.assistant_messages.append(answer)
+        self.conversation.assistant_messages.append(LLMAssistantMessage.from_text(answer))
         return self
 
-    def add_user_message(self, *, message: UserMessage) -> Self:
+    def add_user_message(self, *, message: LLMUserMessage) -> Self:
         self.conversation.user_messages.append(message)
         return self
 
-    def edit_last_result(self, *, result: ResultT) -> Self:
+    def edit_last_result(self, *, result: str) -> Self:
         if len(self.conversation.assistant_messages) == 0:
             raise Honk("Node awaiting response, has no result")
 
         for message_index, message in enumerate(reversed(self.conversation.assistant_messages)):
-            if isinstance(message, Result):
+            if self.__message_is_result(message):
                 index = len(self.conversation.assistant_messages) - message_index - 1
-                self.conversation.assistant_messages[index] = result
+                self.conversation.assistant_messages[index] = LLMAssistantMessage.from_text(result)
                 return self
 
         raise Honk("Node awaiting response, has no result")
@@ -76,6 +76,13 @@ class NodeState[ResultT: Result](BaseModel):
     def undo(self) -> Self:
         self.conversation.undo()
         return self
+
+    def __message_is_result(self, message: LLMAssistantMessage, /) -> bool:
+        try:
+            _ = json.loads(message.parts[0].content)
+            return True
+        except json.JSONDecodeError:
+            return False
 
 
 class FlowRun[FlowArgumentsT: FlowArguments]:
@@ -109,38 +116,47 @@ class FlowRun[FlowArgumentsT: FlowArguments]:
 
         return self._flow_arguments
 
-    def get_all[R: Result](self, *, task: "Task[Any, R]") -> list[NodeState[R]]:
-        matching_nodes: list[NodeState[R]] = []
-        for key, node_state in self._node_states.items():
-            if key[0] == task.name:
-                matching_nodes.append(NodeState[task.result_type].model_validate_json(node_state))
-        return sorted(matching_nodes, key=lambda node: node.index)
-
-    def get[R: Result](self, *, task: "Task[Any, R]", index: int = 0) -> NodeState[R]:
+    def get_state(self, *, task: "Task[Any, Any]", index: int = 0) -> NodeState:
         if (existing_node_state := self._node_states.get((task.name, index))) is not None:
-            return NodeState[task.result_type].model_validate_json(existing_node_state)
+            return NodeState.model_validate_json(existing_node_state)
         else:
-            return NodeState[task.result_type](
+            return NodeState(
                 task_name=task.name,
                 index=index,
-                conversation=Conversation[task.result_type](user_messages=[], assistant_messages=[]),
+                conversation=Conversation(user_messages=[], assistant_messages=[]),
                 last_hash=0,
             )
 
-    def set_flow_arguments(self, flow_arguments: FlowArgumentsT, /) -> None:
-        self._flow_arguments = flow_arguments
-
-    def upsert_node_state(self, node_state: NodeState[Any], /) -> None:
-        key = (node_state.task_name, node_state.index)
-        self._node_states[key] = node_state.model_dump_json()
-
-    def get_next[R: Result](self, *, task: "Task[Any, R]") -> NodeState[R]:
+    def get_next_state(self, *, task: "Task[Any, Any]", index: int = 0) -> NodeState:
         if task.name not in self._last_requested_indices:
             self._last_requested_indices[task.name] = 0
         else:
             self._last_requested_indices[task.name] += 1
 
-        return self.get(task=task, index=self._last_requested_indices[task.name])
+        return self.get_state(task=task, index=self._last_requested_indices[task.name])
+
+    def get_all_results[R: Result](self, *, task: "Task[Any, R]") -> list[R]:
+        matching_nodes: list[NodeState] = []
+        for key, node_state in self._node_states.items():
+            if key[0] == task.name:
+                matching_nodes.append(NodeState.model_validate_json(node_state))
+
+        sorted_nodes = sorted(matching_nodes, key=lambda node: node.index)
+        return [task.result_type.model_validate_json(node.raw_result) for node in sorted_nodes]
+
+    def get_result[R: Result](self, *, task: "Task[Any, R]", index: int = 0) -> R:
+        if (existing_node_state := self._node_states.get((task.name, index))) is not None:
+            parsed_node_state = NodeState.model_validate_json(existing_node_state)
+            return task.result_type.model_validate_json(parsed_node_state.raw_result)
+        else:
+            raise Honk(f"No result found for task {task.name} at index {index}")
+
+    def set_flow_arguments(self, flow_arguments: FlowArgumentsT, /) -> None:
+        self._flow_arguments = flow_arguments
+
+    def upsert_node_state(self, node_state: NodeState, /) -> None:
+        key = (node_state.task_name, node_state.index)
+        self._node_states[key] = node_state.model_dump_json()
 
     def start(
         self,

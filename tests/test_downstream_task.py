@@ -36,5 +36,5 @@ async def test_downstream_task() -> None:
     async with downstream_task.start_run(run_id="1") as run:
         await downstream_task.generate(MyFlowArguments(n_characters=10, n_duplicates=10))
 
-    duplicated_word = run.get(task=duplicate_word)
-    assert len(duplicated_word.result.word) == 100
+    duplicated_word = run.get_result(task=duplicate_word)
+    assert len(duplicated_word.word) == 100

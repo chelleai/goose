@@ -2,6 +2,19 @@ version = 1
 requires-python = ">=3.12"
 
 [[package]]
+name = "aikernel"
+version = "0.1.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "litellm" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d8/7e/c93fa88409e25e22b4fb5cb70d388af3c15654123e912fa8fbde1216227d/aikernel-0.1.5.tar.gz", hash = "sha256:9293c26c15f83600c8183f350b45a008bfb40e6f546f7e691af90cb433720e68", size = 70378 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/50/27140f0118bc653ce8a60e352dc4b8a14bbc19c8033ecfcf33130d8e1e6d/aikernel-0.1.5-py3-none-any.whl", hash = "sha256:4a515bdd5d4195f9dbbf960e808feb26403b24b51f77427f85c83ad6d42003ca", size = 7421 },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.4.4"
 source = { registry = "https://pypi.org/simple" }
@@ -332,11 +345,11 @@ wheels = [
 
 [[package]]
 name = "goose-py"
-version = "0.9.16"
+version = "0.10.1"
 source = { editable = "." }
 dependencies = [
+    { name = "aikernel" },
     { name = "jsonpath-ng" },
-    { name = "litellm" },
     { name = "pydantic" },
 ]
 
@@ -352,8 +365,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aikernel", specifier = ">=0.1.5" },
     { name = "jsonpath-ng", specifier = ">=1.7.0" },
-    { name = "litellm", specifier = ">=1.56.5" },
     { name = "pydantic", specifier = ">=2.8.2" },
 ]
 

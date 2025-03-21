@@ -42,8 +42,8 @@ async def test_flow_arguments_in_run() -> None:
     async with flow_with_arguments.start_run(run_id="1") as run:
         await flow_with_arguments.regenerate()
 
-    duplicated_word = run.get(task=duplicate_word)
-    assert len(duplicated_word.result.word) == 100
+    duplicated_word = run.get_result(task=duplicate_word)
+    assert len(duplicated_word.word) == 100
 
 
 @pytest.mark.asyncio

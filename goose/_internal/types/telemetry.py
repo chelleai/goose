@@ -2,9 +2,8 @@ import json
 from datetime import datetime
 from typing import ClassVar, TypedDict
 
+from aikernel import LiteLLMMessage, LLMModel
 from pydantic import BaseModel, computed_field
-
-from ..types.agent import AIModel, LLMMessage
 
 
 class AgentResponseDump(TypedDict):
@@ -26,30 +25,30 @@ class AgentResponseDump(TypedDict):
 
 
 class AgentResponse[R: BaseModel | str](BaseModel):
-    INPUT_DOLLARS_PER_MILLION_TOKENS: ClassVar[dict[AIModel, float]] = {
-        AIModel.VERTEX_FLASH_8B: 0.30,
-        AIModel.VERTEX_FLASH: 0.15,
-        AIModel.VERTEX_PRO: 5.00,
-        AIModel.GEMINI_FLASH_8B: 0.30,
-        AIModel.GEMINI_FLASH: 0.15,
-        AIModel.GEMINI_PRO: 5.00,
+    INPUT_DOLLARS_PER_MILLION_TOKENS: ClassVar[dict[LLMModel, float]] = {
+        LLMModel.VERTEX_GEMINI_2_0_FLASH: 0.30,
+        LLMModel.VERTEX_GEMINI_2_0_FLASH_LITE: 0.15,
+        LLMModel.VERTEX_GEMINI_2_0_PRO_EXP_02_05: 5.00,
+        LLMModel.GEMINI_2_0_FLASH: 0.30,
+        LLMModel.GEMINI_2_0_FLASH_LITE: 0.15,
+        LLMModel.GEMINI_2_0_PRO_EXP_02_05: 5.00,
     }
-    OUTPUT_DOLLARS_PER_MILLION_TOKENS: ClassVar[dict[AIModel, float]] = {
-        AIModel.VERTEX_FLASH_8B: 0.30,
-        AIModel.VERTEX_FLASH: 0.15,
-        AIModel.VERTEX_PRO: 5.00,
-        AIModel.GEMINI_FLASH_8B: 0.30,
-        AIModel.GEMINI_FLASH: 0.15,
-        AIModel.GEMINI_PRO: 5.00,
+    OUTPUT_DOLLARS_PER_MILLION_TOKENS: ClassVar[dict[LLMModel, float]] = {
+        LLMModel.VERTEX_GEMINI_2_0_FLASH: 0.30,
+        LLMModel.VERTEX_GEMINI_2_0_FLASH_LITE: 0.15,
+        LLMModel.VERTEX_GEMINI_2_0_PRO_EXP_02_05: 5.00,
+        LLMModel.GEMINI_2_0_FLASH: 0.30,
+        LLMModel.GEMINI_2_0_FLASH_LITE: 0.15,
+        LLMModel.GEMINI_2_0_PRO_EXP_02_05: 5.00,
     }
 
     response: R
     run_id: str
     flow_name: str
     task_name: str
-    model: AIModel
-    system: LLMMessage | None = None
-    input_messages: list[LLMMessage]
+    model: LLMModel
+    system: LiteLLMMessage | None = None
+    input_messages: list[LiteLLMMessage]
     input_tokens: int
     output_tokens: int
     start_time: datetime

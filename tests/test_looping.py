@@ -61,7 +61,7 @@ async def test_generate_course_content() -> None:
     async with course_content.start_run(run_id="1") as run:
         await course_content.generate(MyFlowArguments())
 
-    quiz_questions = run.get_all(task=quiz_question)
-    assert quiz_questions[0].result.question == "What is the meaning of Learn Python?"
-    assert quiz_questions[0].result.answer == "Learn Python"
+    quiz_questions = run.get_all_results(task=quiz_question)
+    assert quiz_questions[0].question == "What is the meaning of Learn Python?"
+    assert quiz_questions[0].answer == "Learn Python"
     assert len(quiz_questions) == 3

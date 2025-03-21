@@ -1,42 +1,33 @@
 from typing import Self
 
+from aikernel import LLMAssistantMessage, LLMSystemMessage, LLMUserMessage
 from pydantic import BaseModel
 
 from goose.errors import Honk
 
-from .result import Result
-from .types.agent import AssistantMessage, LLMMessage, SystemMessage, UserMessage
 
-
-class Conversation[R: Result](BaseModel):
-    user_messages: list[UserMessage]
-    assistant_messages: list[R | str]
-    context: SystemMessage | None = None
+class Conversation(BaseModel):
+    user_messages: list[LLMUserMessage]
+    assistant_messages: list[LLMAssistantMessage]
+    context: LLMSystemMessage | None = None
 
     @property
     def awaiting_response(self) -> bool:
         return len(self.user_messages) == len(self.assistant_messages)
 
-    def render(self) -> list[LLMMessage]:
-        messages: list[LLMMessage] = []
+    def render(self) -> list[LLMSystemMessage | LLMUserMessage | LLMAssistantMessage]:
+        messages: list[LLMSystemMessage | LLMUserMessage | LLMAssistantMessage] = []
         if self.context is not None:
-            messages.append(self.context.render())
+            messages.append(self.context)
 
         for message_index in range(len(self.user_messages)):
             message = self.assistant_messages[message_index]
-            if isinstance(message, str):
-                messages.append(AssistantMessage(text=message).render())
-            else:
-                messages.append(AssistantMessage(text=message.model_dump_json()).render())
-
-            messages.append(self.user_messages[message_index].render())
+            messages.append(message)
+            messages.append(self.user_messages[message_index])
 
         if len(self.assistant_messages) > len(self.user_messages):
             message = self.assistant_messages[-1]
-            if isinstance(message, str):
-                messages.append(AssistantMessage(text=message).render())
-            else:
-                messages.append(AssistantMessage(text=message.model_dump_json()).render())
+            messages.append(message)
 
         return messages
 

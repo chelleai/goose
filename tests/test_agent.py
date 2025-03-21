@@ -1,36 +1,33 @@
 from unittest.mock import Mock
 
 import pytest
+from aikernel import LLMMessagePart, LLMModel, LLMUserMessage
 from pytest_mock import MockerFixture
 
-from goose import Agent, FlowArguments, TextResult, flow, task
-from goose.agent import AgentResponse, AIModel, IAgentLogger
+from goose import Agent, AgentResponse, FlowArguments, TextResult, flow, task
+from goose._internal.agent import IAgentLogger
 
 
 class TestFlowArguments(FlowArguments):
     pass
 
 
-class MockLiteLLMResponse:
-    def __init__(self, *, response: str, prompt_tokens: int, completion_tokens: int) -> None:
-        self.choices = [Mock(message=Mock(content=response))]
-        self.usage = Mock(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
-
-
 @pytest.fixture
-def mock_litellm(mocker: MockerFixture) -> Mock:
+def mock_llm_unstructured(mocker: MockerFixture) -> Mock:
     return mocker.patch(
-        "goose._internal.agent.acompletion",
-        return_value=MockLiteLLMResponse(response="Hello", prompt_tokens=10, completion_tokens=10),
+        "goose._internal.agent.llm_unstructured",
+        return_value=Mock(text="Hello", usage=Mock(input_tokens=10, output_tokens=10)),
     )
 
 
 @task
 async def use_agent(*, agent: Agent) -> TextResult:
     return await agent(
-        messages=[{"role": "user", "content": [{"type": "text", "text": "Hello"}]}],
-        model=AIModel.GEMINI_FLASH_8B,
+        messages=[LLMUserMessage(parts=[LLMMessagePart(content="Hello")])],
+        model=LLMModel.GEMINI_2_0_FLASH_LITE,
         task_name="greet",
+        mode="generate",
+        response_model=TextResult,
     )
 
 
@@ -52,16 +49,16 @@ async def agent_flow_with_custom_logger(*, flow_arguments: TestFlowArguments, ag
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("mock_litellm")
+@pytest.mark.usefixtures("mock_llm_unstructured")
 async def test_agent() -> None:
     async with agent_flow.start_run(run_id="1") as run:
         await agent_flow.generate(TestFlowArguments())
 
-    assert run.get(task=use_agent).result.text == "Hello"
+    assert run.get_result(task=use_agent).text == "Hello"
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("mock_litellm")
+@pytest.mark.usefixtures("mock_llm_unstructured")
 async def test_agent_custom_logger() -> None:
     async with agent_flow_with_custom_logger.start_run(run_id="1"):
         await agent_flow_with_custom_logger.generate(TestFlowArguments())

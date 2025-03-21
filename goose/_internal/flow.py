@@ -20,7 +20,7 @@ class IGenerator[FlowArgumentsT: FlowArguments](Protocol):
 class IAdapter[ResultT: Result](Protocol):
     __code__: CodeType
 
-    async def __call__(self, *, conversation: Conversation[ResultT], agent: Agent) -> ResultT: ...
+    async def __call__(self, *, conversation: Conversation, agent: Agent) -> ResultT: ...
 
 
 class Flow[FlowArgumentsT: FlowArguments]:

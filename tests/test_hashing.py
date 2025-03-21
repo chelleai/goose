@@ -34,10 +34,10 @@ async def test_my_flow() -> None:
     async with my_flow.start_run(run_id="1") as first_run:
         await my_flow.generate(MyFlowArguments(n=1))
 
-    first_run_result = first_run.get(task=first_task)
+    first_run_result = first_run.get_result(task=first_task)
 
     async with my_flow.start_run(run_id="1") as second_run:
         await my_flow.regenerate()
 
-    second_run_result = second_run.get(task=first_task)
-    assert second_run_result.result.rand == first_run_result.result.rand
+    second_run_result = second_run.get_result(task=first_task)
+    assert second_run_result.rand == first_run_result.rand

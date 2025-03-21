@@ -2,10 +2,9 @@ import random
 import string
 
 import pytest
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage
 
 from goose import Agent, FlowArguments, Result, flow, task
-from goose._internal.types.agent import MessagePart
-from goose.agent import SystemMessage, UserMessage
 from goose.errors import Honk
 
 
@@ -42,24 +41,23 @@ async def test_refining() -> None:
     async with sentence.start_run(run_id="1") as first_run:
         await sentence.generate(MyFlowArguments())
 
-    initial_random_words = first_run.get_all(task=generate_random_word)
+    initial_random_words = first_run.get_all_results(task=generate_random_word)
     assert len(initial_random_words) == 3
 
     # imagine this is a new process
     async with sentence.start_run(run_id="1") as second_run:
         result = await generate_random_word.refine(
-            user_message=UserMessage(parts=[MessagePart(content="Change it")]),
-            context=SystemMessage(parts=[MessagePart(content="Extra info")]),
+            user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
+            context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
         )
         # Since refine now directly returns the result from the agent call
         assert isinstance(result, GeneratedWord)
 
-    random_words = second_run.get_all(task=generate_random_word)
+    random_words = second_run.get_all_results(task=generate_random_word)
     assert len(random_words) == 3
-    # Remove the __ADAPTED__ check since that was specific to the old __adapt method
-    assert isinstance(random_words[0].result, GeneratedWord)
-    assert isinstance(random_words[1].result, GeneratedWord)
-    assert isinstance(random_words[2].result, GeneratedWord)
+    assert isinstance(random_words[0], GeneratedWord)
+    assert isinstance(random_words[1], GeneratedWord)
+    assert isinstance(random_words[2], GeneratedWord)
 
 
 @pytest.mark.asyncio
@@ -67,6 +65,6 @@ async def test_refining_before_generate_fails() -> None:
     with pytest.raises(Honk):
         async with sentence.start_run(run_id="2"):
             await generate_random_word.refine(
-                user_message=UserMessage(parts=[MessagePart(content="Change it")]),
-                context=SystemMessage(parts=[MessagePart(content="Extra info")]),
+                user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
+                context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
             )

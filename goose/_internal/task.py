@@ -2,13 +2,13 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any, overload
 
+from aikernel import LLMModel, LLMSystemMessage, LLMUserMessage
 from pydantic import BaseModel
 
-from ..errors import Honk
-from .agent import Agent, AIModel
-from .result import Result
-from .state import FlowRun, NodeState, get_current_flow_run
-from .types.agent import SystemMessage, UserMessage
+from goose._internal.agent import Agent
+from goose._internal.result import Result
+from goose._internal.state import FlowRun, NodeState, get_current_flow_run
+from goose.errors import Honk
 
 
 class Task[**P, R: Result]:
@@ -18,7 +18,7 @@ class Task[**P, R: Result]:
         /,
         *,
         retries: int = 0,
-        refinement_model: AIModel = AIModel.GEMINI_FLASH,
+        refinement_model: LLMModel = LLMModel.GEMINI_2_0_FLASH,
     ) -> None:
         self._generator = generator
         self._retries = retries
@@ -35,28 +35,32 @@ class Task[**P, R: Result]:
     def name(self) -> str:
         return self._generator.__name__
 
-    async def generate(self, state: NodeState[R], *args: P.args, **kwargs: P.kwargs) -> R:
+    async def generate(self, state: NodeState, *args: P.args, **kwargs: P.kwargs) -> R:
         state_hash = self.__hash_task_call(*args, **kwargs)
         if state_hash != state.last_hash:
             result = await self._generator(*args, **kwargs)
-            state.add_result(result=result, new_hash=state_hash, overwrite=True)
+            state.add_result(result=result.model_dump_json(), new_hash=state_hash, overwrite=True)
             return result
         else:
-            return state.result
+            return self.result_type.model_validate_json(state.raw_result)
 
-    async def ask(self, *, user_message: UserMessage, context: SystemMessage | None = None, index: int = 0) -> str:
+    async def ask(
+        self, *, user_message: LLMUserMessage, context: LLMSystemMessage | None = None, index: int = 0
+    ) -> str:
         flow_run = self.__get_current_flow_run()
-        node_state = flow_run.get(task=self, index=index)
+        node_state = flow_run.get_state(task=self, index=index)
 
         if len(node_state.conversation.assistant_messages) == 0:
             raise Honk("Cannot ask about a task that has not been initially generated")
 
+        if context is not None:
+            node_state.set_context(context=context)
         node_state.add_user_message(message=user_message)
+
         answer = await flow_run.agent(
             messages=node_state.conversation.render(),
             model=self._refinement_model,
             task_name=f"ask--{self.name}",
-            system=context.render() if context is not None else None,
             mode="ask",
         )
         node_state.add_answer(answer=answer)
@@ -67,12 +71,12 @@ class Task[**P, R: Result]:
     async def refine(
         self,
         *,
-        user_message: UserMessage,
-        context: SystemMessage | None = None,
+        user_message: LLMUserMessage,
+        context: LLMSystemMessage | None = None,
         index: int = 0,
     ) -> R:
         flow_run = self.__get_current_flow_run()
-        node_state = flow_run.get(task=self, index=index)
+        node_state = flow_run.get_state(task=self, index=index)
 
         if len(node_state.conversation.assistant_messages) == 0:
             raise Honk("Cannot refine a task that has not been initially generated")
@@ -85,30 +89,29 @@ class Task[**P, R: Result]:
             messages=node_state.conversation.render(),
             model=self._refinement_model,
             task_name=f"refine--{self.name}",
-            system=context.render() if context is not None else None,
             response_model=self.result_type,
             mode="refine",
         )
-        node_state.add_result(result=result)
+        node_state.add_result(result=result.model_dump_json())
         flow_run.upsert_node_state(node_state)
 
         return result
 
     def edit(self, *, result: R, index: int = 0) -> None:
         flow_run = self.__get_current_flow_run()
-        node_state = flow_run.get(task=self, index=index)
-        node_state.edit_last_result(result=result)
+        node_state = flow_run.get_state(task=self, index=index)
+        node_state.edit_last_result(result=result.model_dump_json())
         flow_run.upsert_node_state(node_state)
 
     def undo(self, *, index: int = 0) -> None:
         flow_run = self.__get_current_flow_run()
-        node_state = flow_run.get(task=self, index=index)
+        node_state = flow_run.get_state(task=self, index=index)
         node_state.undo()
         flow_run.upsert_node_state(node_state)
 
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         flow_run = self.__get_current_flow_run()
-        node_state = flow_run.get_next(task=self)
+        node_state = flow_run.get_next_state(task=self)
         result = await self.generate(node_state, *args, **kwargs)
         flow_run.upsert_node_state(node_state)
         return result
@@ -151,14 +154,14 @@ class Task[**P, R: Result]:
 def task[**P, R: Result](generator: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
 @overload
 def task[**P, R: Result](
-    *, retries: int = 0, refinement_model: AIModel = AIModel.GEMINI_FLASH
+    *, retries: int = 0, refinement_model: LLMModel = LLMModel.GEMINI_2_0_FLASH
 ) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
 def task[**P, R: Result](
     generator: Callable[P, Awaitable[R]] | None = None,
     /,
     *,
     retries: int = 0,
-    refinement_model: AIModel = AIModel.GEMINI_FLASH,
+    refinement_model: LLMModel = LLMModel.GEMINI_2_0_FLASH,
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if generator is None:
 
