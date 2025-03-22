@@ -9,7 +9,6 @@ from aikernel import (
     LLMUserMessage,
     llm_structured,
     llm_unstructured,
-    render_message,
 )
 from pydantic import ValidationError
 
@@ -54,11 +53,11 @@ class Agent:
         end_time = datetime.now()
 
         if isinstance(messages[0], LLMSystemMessage):
-            system = render_message(messages[0])
-            input_messages = [render_message(message) for message in messages[1:]]
+            system = messages[0].render()
+            input_messages = [message.render() for message in messages[1:]]
         else:
             system = None
-            input_messages = [render_message(message) for message in messages]
+            input_messages = [message.render() for message in messages]
 
         agent_response = AgentResponse(
             response=parsed_response,
@@ -93,11 +92,11 @@ class Agent:
         end_time = datetime.now()
 
         if isinstance(messages[0], LLMSystemMessage):
-            system = render_message(messages[0])
-            input_messages = [render_message(message) for message in messages[1:]]
+            system = messages[0].render()
+            input_messages = [message.render() for message in messages[1:]]
         else:
             system = None
-            input_messages = [render_message(message) for message in messages]
+            input_messages = [message.render() for message in messages]
 
         agent_response = AgentResponse(
             response=response.text,
@@ -134,11 +133,11 @@ class Agent:
         end_time = datetime.now()
 
         if isinstance(messages[0], LLMSystemMessage):
-            system = render_message(messages[0])
-            input_messages = [render_message(message) for message in messages[1:]]
+            system = messages[0].render()
+            input_messages = [message.render() for message in messages[1:]]
         else:
             system = None
-            input_messages = [render_message(message) for message in messages]
+            input_messages = [message.render() for message in messages]
 
         agent_response = AgentResponse(
             response=parsed_find_replace_response,

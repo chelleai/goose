@@ -3,15 +3,16 @@ requires-python = ">=3.12"
 
 [[package]]
 name = "aikernel"
-version = "0.1.5"
+version = "0.1.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "litellm" },
+    { name = "openai" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d8/7e/c93fa88409e25e22b4fb5cb70d388af3c15654123e912fa8fbde1216227d/aikernel-0.1.5.tar.gz", hash = "sha256:9293c26c15f83600c8183f350b45a008bfb40e6f546f7e691af90cb433720e68", size = 70378 }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/3e/269f9c9c093260d3d25c5af853134c65fea6159766e5c8b7d66f305f4076/aikernel-0.1.8.tar.gz", hash = "sha256:8df48eef50882d6d375cc37d65720c80efe7c7e5ae73a10e5a5a302cea255da0", size = 70364 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/50/27140f0118bc653ce8a60e352dc4b8a14bbc19c8033ecfcf33130d8e1e6d/aikernel-0.1.5-py3-none-any.whl", hash = "sha256:4a515bdd5d4195f9dbbf960e808feb26403b24b51f77427f85c83ad6d42003ca", size = 7421 },
+    { url = "https://files.pythonhosted.org/packages/a8/55/b8ed6f5f83e7b1cb79e676ca106a618a1be15eba9886f9f1699cd8d9ef90/aikernel-0.1.8-py3-none-any.whl", hash = "sha256:673a4b454d0d98b0c786c43c5ce53ae18573851692b1a5c7ca82bda7314a09e2", size = 6992 },
 ]
 
 [[package]]
@@ -345,7 +346,7 @@ wheels = [
 
 [[package]]
 name = "goose-py"
-version = "0.10.1"
+version = "0.11.0"
 source = { editable = "." }
 dependencies = [
     { name = "aikernel" },
@@ -365,7 +366,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aikernel", specifier = ">=0.1.5" },
+    { name = "aikernel", specifier = ">=0.1.8" },
     { name = "jsonpath-ng", specifier = ">=1.7.0" },
     { name = "pydantic", specifier = ">=2.8.2" },
 ]
@@ -653,7 +654,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.60.0"
+version = "1.63.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -668,9 +669,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/88/02/dd7191498805a6a1b5577993b0e01b5edff7b934fa95fbced4b1f7e09be2/litellm-1.60.0.tar.gz", hash = "sha256:45e3d9d7c19c02b7a1adf1c86102395fc667ebf35f72033e490e8f6fae7d0f8e", size = 6437939 }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/78/ff6d5439168bce504fb28bad1bc6f596dd76fbfacbc330367a1c08a250a7/litellm-1.63.2.tar.gz", hash = "sha256:cf9ab581198a12a5584571e0b2ad83869c7621684936ed26d7bf59015d0a8d2b", size = 6587491 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/db/382c5e34025acb2a01e02d8ce3e1b675d41a29b2e5c694435272675f6fb2/litellm-1.60.0-py3-none-any.whl", hash = "sha256:e8284f5cc74ae1aed77516cdfbb2db3746d50c4ba055fb21358e6e25aea25a15", size = 6732210 },
+    { url = "https://files.pythonhosted.org/packages/d9/50/5b8a1ad1ca3851b979b2fbd1a66d6f458dc5edd478101a06a8becff1df2d/litellm-1.63.2-py3-none-any.whl", hash = "sha256:1224e15b351a0f194bd5d908ccf4ff5d0e16b583f120519a5e68158bd44da071", size = 6898192 },
 ]
 
 [[package]]
