@@ -5,6 +5,8 @@ from typing import ClassVar, TypedDict
 from aikernel import LiteLLMMessage, LLMModel
 from pydantic import BaseModel, computed_field
 
+from goose.errors import Honk
+
 
 class AgentResponseDump(TypedDict):
     run_id: str
@@ -77,15 +79,18 @@ class AgentResponse[R: BaseModel | str](BaseModel):
     def minimized_dump(self) -> AgentResponseDump:
         if self.system is None:
             minimized_system_message = ""
+        elif self.system["role"] == "tool" or not isinstance(self.system["content"], list):
+            raise Honk("System message cannot use tools")
         else:
-            minimized_system_message = self.system
-            for part in minimized_system_message["content"]:
+            for part in self.system["content"]:
                 if part["type"] == "image_url":
                     part["image_url"] = "__MEDIA__"
-            minimized_system_message = json.dumps(minimized_system_message)
+            minimized_system_message = json.dumps(self.system)
 
         minimized_input_messages = [message for message in self.input_messages]
         for message in minimized_input_messages:
+            if message["role"] == "tool" or not isinstance(message["content"], list):
+                raise Honk("Input messages cannot use tools")
             for part in message["content"]:
                 if part["type"] == "image_url":
                     part["image_url"] = "__MEDIA__"

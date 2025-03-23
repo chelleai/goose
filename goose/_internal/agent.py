@@ -6,6 +6,7 @@ from aikernel import (
     LLMAssistantMessage,
     LLMModel,
     LLMSystemMessage,
+    LLMToolMessage,
     LLMUserMessage,
     llm_structured,
     llm_unstructured,
@@ -15,6 +16,8 @@ from pydantic import ValidationError
 from goose._internal.result import FindReplaceResponse, Result, TextResult
 from goose._internal.types.telemetry import AgentResponse
 from goose.errors import Honk
+
+ExpectedMessage = LLMUserMessage | LLMAssistantMessage | LLMSystemMessage | LLMToolMessage
 
 
 class IAgentLogger(Protocol):
@@ -42,12 +45,13 @@ class Agent:
         response_model: type[R] = TextResult,
     ) -> R:
         start_time = datetime.now()
+        typed_messages: list[ExpectedMessage] = [*messages]
 
         if response_model is TextResult:
-            response = await llm_unstructured(model=model, messages=messages)
+            response = await llm_unstructured(model=model, messages=typed_messages)
             parsed_response = response_model.model_validate({"text": response.text})
         else:
-            response = await llm_structured(model=model, messages=messages, response_model=response_model)
+            response = await llm_structured(model=model, messages=typed_messages, response_model=response_model)
             parsed_response = response.structured_response
 
         end_time = datetime.now()
@@ -88,7 +92,8 @@ class Agent:
         task_name: str,
     ) -> str:
         start_time = datetime.now()
-        response = await llm_unstructured(model=model, messages=messages)
+        typed_messages: list[ExpectedMessage] = [*messages]
+        response = await llm_unstructured(model=model, messages=typed_messages)
         end_time = datetime.now()
 
         if isinstance(messages[0], LLMSystemMessage):
@@ -128,7 +133,10 @@ class Agent:
         response_model: type[R],
     ) -> R:
         start_time = datetime.now()
-        find_replace_response = await llm_structured(model=model, messages=messages, response_model=FindReplaceResponse)
+        typed_messages: list[ExpectedMessage] = [*messages]
+        find_replace_response = await llm_structured(
+            model=model, messages=typed_messages, response_model=FindReplaceResponse
+        )
         parsed_find_replace_response = find_replace_response.structured_response
         end_time = datetime.now()
 

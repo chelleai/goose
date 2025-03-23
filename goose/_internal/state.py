@@ -2,7 +2,7 @@ import json
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, NewType, Self
 
-from aikernel import LLMAssistantMessage, LLMSystemMessage, LLMUserMessage
+from aikernel import LLMAssistantMessage, LLMMessagePart, LLMSystemMessage, LLMUserMessage
 from pydantic import BaseModel, ConfigDict
 
 from goose._internal.agent import Agent, IAgentLogger
@@ -46,15 +46,15 @@ class NodeState(BaseModel):
         overwrite: bool = False,
     ) -> Self:
         if overwrite and len(self.conversation.assistant_messages) > 0:
-            self.conversation.assistant_messages[-1] = LLMAssistantMessage.from_text(result)
+            self.conversation.assistant_messages[-1] = LLMAssistantMessage(parts=[LLMMessagePart(content=result)])
         else:
-            self.conversation.assistant_messages.append(LLMAssistantMessage.from_text(result))
+            self.conversation.assistant_messages.append(LLMAssistantMessage(parts=[LLMMessagePart(content=result)]))
         if new_hash is not None:
             self.last_hash = new_hash
         return self
 
     def add_answer(self, *, answer: str) -> Self:
-        self.conversation.assistant_messages.append(LLMAssistantMessage.from_text(answer))
+        self.conversation.assistant_messages.append(LLMAssistantMessage(parts=[LLMMessagePart(content=answer)]))
         return self
 
     def add_user_message(self, *, message: LLMUserMessage) -> Self:
@@ -68,7 +68,9 @@ class NodeState(BaseModel):
         for message_index, message in enumerate(reversed(self.conversation.assistant_messages)):
             if self.__message_is_result(message):
                 index = len(self.conversation.assistant_messages) - message_index - 1
-                self.conversation.assistant_messages[index] = LLMAssistantMessage.from_text(result)
+                self.conversation.assistant_messages[index] = LLMAssistantMessage(
+                    parts=[LLMMessagePart(content=result)]
+                )
                 return self
 
         raise Honk("Node awaiting response, has no result")
