@@ -1,10 +1,13 @@
 import random
 import string
+from unittest.mock import Mock
 
 import pytest
 from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage
+from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
+from goose._internal.result import FindReplaceResponse, Replacement
 from goose.errors import Honk
 
 
@@ -36,10 +39,31 @@ async def sentence(*, flow_arguments: MyFlowArguments, agent: Agent) -> None:
     await make_sentence(words=words)
 
 
+@pytest.fixture
+def mock_llm_structured(mocker: MockerFixture) -> Mock:
+    return mocker.patch(
+        "goose._internal.agent.llm_structured",
+        return_value=Mock(
+            structured_response=FindReplaceResponse(
+                replacements=[Replacement(find="a", replace="b")],
+            ),
+            usage=Mock(input_tokens=10, output_tokens=10),
+        ),
+    )
+
+
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_llm_structured")
 async def test_refining() -> None:
-    async with sentence.start_run(run_id="1") as first_run:
+    async with sentence.start_run(run_id="1"):
         await sentence.generate(MyFlowArguments())
+
+    async with sentence.start_run(run_id="1") as first_run:
+        await generate_random_word.refine(
+            index=0,
+            user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
+            context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
+        )
 
     initial_random_words = first_run.get_all_results(task=generate_random_word)
     assert len(initial_random_words) == 3
