@@ -1,6 +1,6 @@
 [project]
 name = "goose-py"
-version = "0.11.4"
+version = "0.11.5"
 description = "A tool for AI workflows based on human-computer collaboration and structured output."
 readme = "README.md"
 authors = [
@@ -11,7 +11,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "jsonpath-ng>=1.7.0",
-    "aikernel>=0.1.23",
+    "aikernel>=0.1.24",
     "pydantic>=2.8.2",
 ]
 
