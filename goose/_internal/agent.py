@@ -4,10 +4,11 @@ from typing import Any, Literal, Protocol, overload
 
 from aikernel import (
     LLMAssistantMessage,
-    LLMModel,
+    LLMModelAlias,
     LLMSystemMessage,
     LLMToolMessage,
     LLMUserMessage,
+    Router,
     llm_structured,
     llm_unstructured,
 )
@@ -40,18 +41,21 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
         task_name: str,
+        router: Router,
         response_model: type[R] = TextResult,
     ) -> R:
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
 
         if response_model is TextResult:
-            response = await llm_unstructured(model=model, messages=typed_messages)
+            response = await llm_unstructured(model=model, messages=typed_messages, router=router)
             parsed_response = response_model.model_validate({"text": response.text})
         else:
-            response = await llm_structured(model=model, messages=typed_messages, response_model=response_model)
+            response = await llm_structured(
+                model=model, messages=typed_messages, response_model=response_model, router=router
+            )
             parsed_response = response.structured_response
 
         end_time = datetime.now()
@@ -88,12 +92,13 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
         task_name: str,
+        router: Router,
     ) -> str:
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
-        response = await llm_unstructured(model=model, messages=typed_messages)
+        response = await llm_unstructured(model=model, messages=typed_messages, router=router)
         end_time = datetime.now()
 
         if isinstance(messages[0], LLMSystemMessage):
@@ -128,14 +133,15 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
+        router: Router,
         task_name: str,
         response_model: type[R],
     ) -> R:
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
         find_replace_response = await llm_structured(
-            model=model, messages=typed_messages, response_model=FindReplaceResponse
+            model=model, messages=typed_messages, response_model=FindReplaceResponse, router=router
         )
         parsed_find_replace_response = find_replace_response.structured_response
         end_time = datetime.now()
@@ -179,7 +185,8 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
+        router: Router,
         task_name: str,
         mode: Literal["generate"],
         response_model: type[R],
@@ -190,7 +197,8 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
+        router: Router,
         task_name: str,
         mode: Literal["ask"],
         response_model: type[R] = TextResult,
@@ -201,7 +209,8 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
+        router: Router,
         task_name: str,
         response_model: type[R],
         mode: Literal["refine"],
@@ -212,7 +221,8 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
+        router: Router,
         task_name: str,
         response_model: type[R],
     ) -> R: ...
@@ -221,7 +231,8 @@ class Agent:
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModel,
+        model: LLMModelAlias,
+        router: Router,
         task_name: str,
         response_model: type[R] = TextResult,
         mode: Literal["generate", "ask", "refine"] = "generate",
@@ -229,13 +240,13 @@ class Agent:
         match mode:
             case "generate":
                 return await self.generate(
-                    messages=messages, model=model, task_name=task_name, response_model=response_model
+                    messages=messages, model=model, task_name=task_name, router=router, response_model=response_model
                 )
             case "ask":
-                return await self.ask(messages=messages, model=model, task_name=task_name)
+                return await self.ask(messages=messages, model=model, task_name=task_name, router=router)
             case "refine":
                 return await self.refine(
-                    messages=messages, model=model, task_name=task_name, response_model=response_model
+                    messages=messages, model=model, task_name=task_name, router=router, response_model=response_model
                 )
 
     def __apply_find_replace[R: Result](
