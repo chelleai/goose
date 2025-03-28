@@ -3,15 +3,16 @@ import string
 from unittest.mock import Mock
 
 import pytest
-from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, LLMRouter
+from aikernel import LLMMessagePart, LLMModelAlias, LLMRouter, LLMSystemMessage, LLMUserMessage
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
 from goose._internal.result import FindReplaceResponse, Replacement
 from goose.errors import Honk
 
-ROUTER = LLMRouter(
-    model_list=[{"model_name": "gemini-2.0-flash-lite", "litellm_params": {"model": "gemini/gemini-2.0-flash-lite"}}]
+ROUTER = LLMRouter[LLMModelAlias](
+    model_list=[{"model_name": "gemini-2.0-flash-lite", "litellm_params": {"model": "gemini/gemini-2.0-flash-lite"}}],
+    fallbacks=[],
 )
 
 

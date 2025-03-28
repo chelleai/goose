@@ -5,10 +5,10 @@ from typing import Any, Literal, Protocol, overload
 from aikernel import (
     LLMAssistantMessage,
     LLMModelAlias,
+    LLMRouter,
     LLMSystemMessage,
     LLMToolMessage,
     LLMUserMessage,
-    LLMRouter,
     llm_structured,
     llm_unstructured,
 )
@@ -43,7 +43,7 @@ class Agent:
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
         task_name: str,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
         response_model: type[R] = TextResult,
     ) -> R:
         start_time = datetime.now()
@@ -94,7 +94,7 @@ class Agent:
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
         task_name: str,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
     ) -> str:
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
@@ -134,7 +134,7 @@ class Agent:
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
         task_name: str,
         response_model: type[R],
     ) -> R:
@@ -186,7 +186,7 @@ class Agent:
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
         task_name: str,
         mode: Literal["generate"],
         response_model: type[R],
@@ -198,7 +198,7 @@ class Agent:
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
         task_name: str,
         mode: Literal["ask"],
         response_model: type[R] = TextResult,
@@ -210,7 +210,7 @@ class Agent:
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
         task_name: str,
         response_model: type[R],
         mode: Literal["refine"],
@@ -222,7 +222,7 @@ class Agent:
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
         task_name: str,
         response_model: type[R],
     ) -> R: ...
@@ -232,7 +232,7 @@ class Agent:
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
         model: LLMModelAlias,
-        router: LLMRouter,
+        router: LLMRouter[LLMModelAlias],
         task_name: str,
         response_model: type[R] = TextResult,
         mode: Literal["generate", "ask", "refine"] = "generate",
