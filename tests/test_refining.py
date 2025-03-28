@@ -3,12 +3,16 @@ import string
 from unittest.mock import Mock
 
 import pytest
-from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, Router
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, Result, flow, task
 from goose._internal.result import FindReplaceResponse, Replacement
 from goose.errors import Honk
+
+ROUTER = Router(
+    model_list=[{"model_name": "gemini-2.0-flash-lite", "litellm_params": {"model": "gemini/gemini-2.0-flash-lite"}}]
+)
 
 
 class MyFlowArguments(FlowArguments):
@@ -63,6 +67,7 @@ async def test_refining() -> None:
             index=0,
             user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
             context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
+            router=ROUTER,
         )
 
     initial_random_words = first_run.get_all_results(task=generate_random_word)
@@ -73,6 +78,7 @@ async def test_refining() -> None:
         result = await generate_random_word.refine(
             user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
             context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
+            router=ROUTER,
         )
         # Since refine now directly returns the result from the agent call
         assert isinstance(result, GeneratedWord)
@@ -91,4 +97,5 @@ async def test_refining_before_generate_fails() -> None:
             await generate_random_word.refine(
                 user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
                 context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
+                router=ROUTER,
             )

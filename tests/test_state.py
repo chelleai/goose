@@ -75,6 +75,7 @@ async def test_state_undo() -> None:
             index=0,
             user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
             context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
+            router=Mock(),
         )
 
     async with with_state.start_run(run_id="2") as run:

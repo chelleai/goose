@@ -2,7 +2,7 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any, overload
 
-from aikernel import LLMModel, LLMSystemMessage, LLMUserMessage
+from aikernel import LLMModelAlias, LLMSystemMessage, LLMUserMessage, Router
 from pydantic import BaseModel
 
 from goose._internal.agent import Agent
@@ -18,11 +18,11 @@ class Task[**P, R: Result]:
         /,
         *,
         retries: int = 0,
-        refinement_model: LLMModel = LLMModel.GEMINI_2_0_FLASH,
+        refinement_model: LLMModelAlias = "gemini-2.0-flash-lite",
     ) -> None:
         self._generator = generator
         self._retries = retries
-        self._refinement_model = refinement_model
+        self._refinement_model: LLMModelAlias = refinement_model
 
     @property
     def result_type(self) -> type[R]:
@@ -45,7 +45,7 @@ class Task[**P, R: Result]:
             return self.result_type.model_validate_json(state.raw_result)
 
     async def ask(
-        self, *, user_message: LLMUserMessage, context: LLMSystemMessage | None = None, index: int = 0
+        self, *, user_message: LLMUserMessage, router: Router, context: LLMSystemMessage | None = None, index: int = 0
     ) -> str:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get_state(task=self, index=index)
@@ -62,6 +62,7 @@ class Task[**P, R: Result]:
             model=self._refinement_model,
             task_name=f"ask--{self.name}",
             mode="ask",
+            router=router,
         )
         node_state.add_answer(answer=answer)
         flow_run.upsert_node_state(node_state)
@@ -72,6 +73,7 @@ class Task[**P, R: Result]:
         self,
         *,
         user_message: LLMUserMessage,
+        router: Router,
         context: LLMSystemMessage | None = None,
         index: int = 0,
     ) -> R:
@@ -91,6 +93,7 @@ class Task[**P, R: Result]:
             task_name=f"refine--{self.name}",
             response_model=self.result_type,
             mode="refine",
+            router=router,
         )
         node_state.add_result(result=result.model_dump_json())
         flow_run.upsert_node_state(node_state)
@@ -154,14 +157,14 @@ class Task[**P, R: Result]:
 def task[**P, R: Result](generator: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
 @overload
 def task[**P, R: Result](
-    *, retries: int = 0, refinement_model: LLMModel = LLMModel.GEMINI_2_0_FLASH
+    *, retries: int = 0, refinement_model: LLMModelAlias = "gemini-2.0-flash-lite"
 ) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
 def task[**P, R: Result](
     generator: Callable[P, Awaitable[R]] | None = None,
     /,
     *,
     retries: int = 0,
-    refinement_model: LLMModel = LLMModel.GEMINI_2_0_FLASH,
+    refinement_model: LLMModelAlias = "gemini-2.0-flash-lite",
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if generator is None:
 

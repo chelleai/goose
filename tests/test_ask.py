@@ -1,12 +1,16 @@
 from unittest.mock import Mock
 
 import pytest
-from aikernel import LLMAssistantMessage, LLMMessagePart, LLMUserMessage
+from aikernel import LLMAssistantMessage, LLMMessagePart, LLMUserMessage, Router
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, flow, task
 from goose._internal.result import TextResult
 from goose.errors import Honk
+
+ROUTER = Router(
+    model_list=[{"model_name": "gemini-2.0-flash-lite", "litellm_params": {"model": "gemini/gemini-2.0-flash-lite"}}]
+)
 
 
 class MockLiteLLMResponse:
@@ -51,7 +55,8 @@ async def test_ask_adds_to_conversation():
 
         # Ask a follow-up question
         response = await basic_task.ask(
-            user_message=LLMUserMessage(parts=[LLMMessagePart(content="Can you explain how you got that?")])
+            user_message=LLMUserMessage(parts=[LLMMessagePart(content="Can you explain how you got that?")]),
+            router=ROUTER,
         )
 
         # Verify the response exists and makes sense
@@ -85,7 +90,10 @@ async def test_ask_requires_completed_task():
 
         # Try to ask before running the task
         with pytest.raises(Honk, match="Cannot ask about a task that has not been initially generated"):
-            await basic_task.ask(user_message=LLMUserMessage(parts=[LLMMessagePart(content="Can you explain?")]))
+            await basic_task.ask(
+                user_message=LLMUserMessage(parts=[LLMMessagePart(content="Can you explain?")]),
+                router=ROUTER,
+            )
 
 
 @pytest.mark.asyncio
@@ -101,7 +109,10 @@ async def test_ask_multiple_questions():
         questions = ["Why is that the answer?", "Can you explain it differently?", "What if we added 1 more?"]
 
         for question in questions:
-            response = await basic_task.ask(user_message=LLMUserMessage(parts=[LLMMessagePart(content=question)]))
+            response = await basic_task.ask(
+                user_message=LLMUserMessage(parts=[LLMMessagePart(content=question)]),
+                router=ROUTER,
+            )
             responses.append(response)
 
         # Verify we got responses for all questions
