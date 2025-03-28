@@ -58,6 +58,7 @@ async def test_ask_adds_to_conversation():
         response = await basic_task.ask(
             user_message=LLMUserMessage(parts=[LLMMessagePart(content="Can you explain how you got that?")]),
             router=ROUTER,
+            model="gemini-2.0-flash-lite",
         )
 
         # Verify the response exists and makes sense
@@ -94,6 +95,7 @@ async def test_ask_requires_completed_task():
             await basic_task.ask(
                 user_message=LLMUserMessage(parts=[LLMMessagePart(content="Can you explain?")]),
                 router=ROUTER,
+                model="gemini-2.0-flash-lite",
             )
 
 
@@ -113,6 +115,7 @@ async def test_ask_multiple_questions():
             response = await basic_task.ask(
                 user_message=LLMUserMessage(parts=[LLMMessagePart(content=question)]),
                 router=ROUTER,
+                model="gemini-2.0-flash-lite",
             )
             responses.append(response)
 

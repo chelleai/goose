@@ -69,6 +69,7 @@ async def test_refining() -> None:
             user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
             context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
             router=ROUTER,
+            model="gemini-2.0-flash-lite",
         )
 
     initial_random_words = first_run.get_all_results(task=generate_random_word)
@@ -80,6 +81,7 @@ async def test_refining() -> None:
             user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
             context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
             router=ROUTER,
+            model="gemini-2.0-flash-lite",
         )
         # Since refine now directly returns the result from the agent call
         assert isinstance(result, GeneratedWord)
@@ -99,4 +101,5 @@ async def test_refining_before_generate_fails() -> None:
                 user_message=LLMUserMessage(parts=[LLMMessagePart(content="Change it")]),
                 context=LLMSystemMessage(parts=[LLMMessagePart(content="Extra info")]),
                 router=ROUTER,
+                model="gemini-2.0-flash-lite",
             )

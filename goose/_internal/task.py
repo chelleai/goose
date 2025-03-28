@@ -18,11 +18,9 @@ class Task[**P, R: Result]:
         /,
         *,
         retries: int = 0,
-        refinement_model: LLMModelAlias = "gemini-2.0-flash-lite",
     ) -> None:
         self._generator = generator
         self._retries = retries
-        self._refinement_model: LLMModelAlias = refinement_model
 
     @property
     def result_type(self) -> type[R]:
@@ -44,11 +42,12 @@ class Task[**P, R: Result]:
         else:
             return self.result_type.model_validate_json(state.raw_result)
 
-    async def ask(
+    async def ask[M: LLMModelAlias](
         self,
         *,
         user_message: LLMUserMessage,
-        router: LLMRouter[LLMModelAlias],
+        router: LLMRouter[M],
+        model: M,
         context: LLMSystemMessage | None = None,
         index: int = 0,
     ) -> str:
@@ -64,7 +63,7 @@ class Task[**P, R: Result]:
 
         answer = await flow_run.agent(
             messages=node_state.conversation.render(),
-            model=self._refinement_model,
+            model=model,
             task_name=f"ask--{self.name}",
             mode="ask",
             router=router,
@@ -74,11 +73,12 @@ class Task[**P, R: Result]:
 
         return answer
 
-    async def refine(
+    async def refine[M: LLMModelAlias](
         self,
         *,
         user_message: LLMUserMessage,
-        router: LLMRouter[LLMModelAlias],
+        router: LLMRouter[M],
+        model: M,
         context: LLMSystemMessage | None = None,
         index: int = 0,
     ) -> R:
@@ -94,7 +94,7 @@ class Task[**P, R: Result]:
 
         result = await flow_run.agent(
             messages=node_state.conversation.render(),
-            model=self._refinement_model,
+            model=model,
             task_name=f"refine--{self.name}",
             response_model=self.result_type,
             mode="refine",
@@ -161,21 +161,18 @@ class Task[**P, R: Result]:
 @overload
 def task[**P, R: Result](generator: Callable[P, Awaitable[R]], /) -> Task[P, R]: ...
 @overload
-def task[**P, R: Result](
-    *, retries: int = 0, refinement_model: LLMModelAlias = "gemini-2.0-flash-lite"
-) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
+def task[**P, R: Result](*, retries: int = 0) -> Callable[[Callable[P, Awaitable[R]]], Task[P, R]]: ...
 def task[**P, R: Result](
     generator: Callable[P, Awaitable[R]] | None = None,
     /,
     *,
     retries: int = 0,
-    refinement_model: LLMModelAlias = "gemini-2.0-flash-lite",
 ) -> Task[P, R] | Callable[[Callable[P, Awaitable[R]]], Task[P, R]]:
     if generator is None:
 
         def decorator(fn: Callable[P, Awaitable[R]]) -> Task[P, R]:
-            return Task(fn, retries=retries, refinement_model=refinement_model)
+            return Task(fn, retries=retries)
 
         return decorator
 
-    return Task(generator, retries=retries, refinement_model=refinement_model)
+    return Task(generator, retries=retries)
