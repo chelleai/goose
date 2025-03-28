@@ -37,13 +37,13 @@ class Agent:
         self.run_id = run_id
         self.logger = logger
 
-    async def generate[R: Result](
+    async def generate[R: Result, M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
+        model: M,
         task_name: str,
-        router: LLMRouter[LLMModelAlias],
+        router: LLMRouter[M],
         response_model: type[R] = TextResult,
     ) -> R:
         start_time = datetime.now()
@@ -88,13 +88,13 @@ class Agent:
 
         return parsed_response
 
-    async def ask(
+    async def ask[M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
+        model: M,
         task_name: str,
-        router: LLMRouter[LLMModelAlias],
+        router: LLMRouter[M],
     ) -> str:
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
@@ -129,12 +129,12 @@ class Agent:
 
         return response.text
 
-    async def refine[R: Result](
+    async def refine[R: Result, M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
-        router: LLMRouter[LLMModelAlias],
+        model: M,
+        router: LLMRouter[M],
         task_name: str,
         response_model: type[R],
     ) -> R:
@@ -181,58 +181,58 @@ class Agent:
         return refined_response
 
     @overload
-    async def __call__[R: Result](
+    async def __call__[R: Result, M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
-        router: LLMRouter[LLMModelAlias],
+        model: M,
+        router: LLMRouter[M],
         task_name: str,
         mode: Literal["generate"],
         response_model: type[R],
     ) -> R: ...
 
     @overload
-    async def __call__[R: Result](
+    async def __call__[R: Result, M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
-        router: LLMRouter[LLMModelAlias],
+        model: M,
+        router: LLMRouter[M],
         task_name: str,
         mode: Literal["ask"],
         response_model: type[R] = TextResult,
     ) -> str: ...
 
     @overload
-    async def __call__[R: Result](
+    async def __call__[R: Result, M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
-        router: LLMRouter[LLMModelAlias],
+        model: M,
+        router: LLMRouter[M],
         task_name: str,
         response_model: type[R],
         mode: Literal["refine"],
     ) -> R: ...
 
     @overload
-    async def __call__[R: Result](
+    async def __call__[R: Result, M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
-        router: LLMRouter[LLMModelAlias],
+        model: M,
+        router: LLMRouter[M],
         task_name: str,
         response_model: type[R],
     ) -> R: ...
 
-    async def __call__[R: Result](
+    async def __call__[R: Result, M: LLMModelAlias](
         self,
         *,
         messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage],
-        model: LLMModelAlias,
-        router: LLMRouter[LLMModelAlias],
+        model: M,
+        router: LLMRouter[M],
         task_name: str,
         response_model: type[R] = TextResult,
         mode: Literal["generate", "ask", "refine"] = "generate",
