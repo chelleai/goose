@@ -2,7 +2,7 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any, overload
 
-from aikernel import LLMModelAlias, LLMSystemMessage, LLMUserMessage, Router
+from aikernel import LLMModelAlias, LLMSystemMessage, LLMUserMessage, LLMRouter
 from pydantic import BaseModel
 
 from goose._internal.agent import Agent
@@ -45,7 +45,7 @@ class Task[**P, R: Result]:
             return self.result_type.model_validate_json(state.raw_result)
 
     async def ask(
-        self, *, user_message: LLMUserMessage, router: Router, context: LLMSystemMessage | None = None, index: int = 0
+        self, *, user_message: LLMUserMessage, router: LLMRouter, context: LLMSystemMessage | None = None, index: int = 0
     ) -> str:
         flow_run = self.__get_current_flow_run()
         node_state = flow_run.get_state(task=self, index=index)
@@ -73,7 +73,7 @@ class Task[**P, R: Result]:
         self,
         *,
         user_message: LLMUserMessage,
-        router: Router,
+        router: LLMRouter,
         context: LLMSystemMessage | None = None,
         index: int = 0,
     ) -> R:

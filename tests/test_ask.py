@@ -1,14 +1,14 @@
 from unittest.mock import Mock
 
 import pytest
-from aikernel import LLMAssistantMessage, LLMMessagePart, LLMUserMessage, Router
+from aikernel import LLMAssistantMessage, LLMMessagePart, LLMUserMessage, LLMRouter
 from pytest_mock import MockerFixture
 
 from goose import Agent, FlowArguments, flow, task
 from goose._internal.result import TextResult
 from goose.errors import Honk
 
-ROUTER = Router(
+ROUTER = LLMRouter(
     model_list=[{"model_name": "gemini-2.0-flash-lite", "litellm_params": {"model": "gemini/gemini-2.0-flash-lite"}}]
 )
 

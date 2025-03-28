@@ -3,15 +3,15 @@ requires-python = ">=3.12"
 
 [[package]]
 name = "aikernel"
-version = "0.1.39"
+version = "0.1.42"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "litellm" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/7e/1da152279e50e6d651b4f29cc6ee950f4e5aad5c64b8b4889df036c20acd/aikernel-0.1.39.tar.gz", hash = "sha256:13e21eaadd66499d3fb00c82d42e6d1ae4022e69017133d1d04da58636a8e399", size = 72243 }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/43/451591e3835257c29e90db4c9cb22cd4c4566d63e1c1ab20652af612686d/aikernel-0.1.42.tar.gz", hash = "sha256:7fb29a14f32119a533502bb2925112c43709a00f2753b3d07b4c7b2c7cb153f6", size = 72593 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/86/d55e7c00a1d2df6507ab3b41fb5933be2e24c5ad53c8e2879fff8c2008fc/aikernel-0.1.39-py3-none-any.whl", hash = "sha256:604426ae04880e227cffdef491f3ee305661b957f46153465c8e69740313b368", size = 9972 },
+    { url = "https://files.pythonhosted.org/packages/0d/69/677ce38aeb965cda409c8f1efecd85f17fc648dba02f7441034a9bba8c1f/aikernel-0.1.42-py3-none-any.whl", hash = "sha256:b22ee9726e1e2688ef05bf7433fed0f671687d63710fbb507c81719efdbff309", size = 10570 },
 ]
 
 [[package]]
@@ -345,7 +345,7 @@ wheels = [
 
 [[package]]
 name = "goose-py"
-version = "0.11.18"
+version = "0.11.22"
 source = { editable = "." }
 dependencies = [
     { name = "aikernel" },
@@ -365,7 +365,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aikernel", specifier = "==0.1.39" },
+    { name = "aikernel", specifier = "==0.1.42" },
     { name = "jsonpath-ng", specifier = ">=1.7.0" },
     { name = "pydantic", specifier = ">=2.8.2" },
 ]

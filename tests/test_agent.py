@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
-from aikernel import LLMMessagePart, LLMUserMessage, Router
+from aikernel import LLMMessagePart, LLMUserMessage, LLMRouter
 from pytest_mock import MockerFixture
 
 from goose import Agent, AgentResponse, FlowArguments, TextResult, flow, task
@@ -22,7 +22,7 @@ def mock_llm_unstructured(mocker: MockerFixture) -> Mock:
 
 @task
 async def use_agent(*, agent: Agent) -> TextResult:
-    router = Router(
+    router = LLMRouter(
         model_list=[
             {"model_name": "gemini-2.0-flash-lite", "litellm_params": {"model": "gemini/gemini-2.0-flash-lite"}}
         ]
