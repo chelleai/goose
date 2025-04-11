@@ -1,3 +1,9 @@
+"""Agent module for interacting with language models.
+
+This module provides the Agent class for handling interactions with language models,
+along with protocols for custom logging.
+"""
+
 import logging
 from datetime import datetime
 from typing import Any, Literal, Protocol, overload
@@ -22,10 +28,27 @@ ExpectedMessage = LLMUserMessage | LLMAssistantMessage | LLMSystemMessage | LLMT
 
 
 class IAgentLogger(Protocol):
+    """Protocol for custom agent response logging.
+
+    Implement this protocol to create custom loggers for agent responses.
+    """
+
     async def __call__(self, *, response: AgentResponse[Any]) -> None: ...
 
 
 class Agent:
+    """Agent for interacting with language models.
+
+    The Agent class handles interactions with language models, including generating
+    structured and unstructured responses, asking questions, and refining results.
+    It also manages logging of model interactions.
+
+    Attributes:
+        flow_name: The name of the flow this agent is part of
+        run_id: The ID of the current run
+        logger: Optional custom logger for agent responses
+    """
+
     def __init__(
         self,
         *,
@@ -33,6 +56,13 @@ class Agent:
         run_id: str,
         logger: IAgentLogger | None = None,
     ) -> None:
+        """Initialize an Agent.
+
+        Args:
+            flow_name: The name of the flow this agent is part of
+            run_id: The ID of the current run
+            logger: Optional custom logger for agent responses
+        """
         self.flow_name = flow_name
         self.run_id = run_id
         self.logger = logger
@@ -46,6 +76,24 @@ class Agent:
         router: LLMRouter[M],
         response_model: type[R] = TextResult,
     ) -> R:
+        """Generate a structured response from the language model.
+
+        This method sends a sequence of messages to the language model and expects
+        a structured response conforming to the provided response_model.
+
+        Args:
+            messages: List of messages to send to the language model
+            model: The language model alias to use
+            task_name: Name of the task for logging and tracking
+            router: LLM router for routing the request
+            response_model: Pydantic model class for the expected response structure
+
+        Returns:
+            A validated instance of the response_model
+
+        Raises:
+            ValidationError: If the response cannot be parsed into the response_model
+        """
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
 
@@ -96,6 +144,20 @@ class Agent:
         task_name: str,
         router: LLMRouter[M],
     ) -> str:
+        """Ask the language model for an unstructured text response.
+
+        This method sends a sequence of messages to the language model and
+        receives a free-form text response.
+
+        Args:
+            messages: List of messages to send to the language model
+            model: The language model alias to use
+            task_name: Name of the task for logging and tracking
+            router: LLM router for routing the request
+
+        Returns:
+            The text response from the language model
+        """
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
         response = await llm_unstructured(model=model, messages=typed_messages, router=router)
@@ -138,6 +200,26 @@ class Agent:
         task_name: str,
         response_model: type[R],
     ) -> R:
+        """Refine a previous structured response based on feedback.
+
+        This method uses a find-and-replace approach to refine a previous structured
+        response. It identifies parts of the previous response to change and applies
+        these changes to create an updated response.
+
+        Args:
+            messages: List of messages including the previous response and feedback
+            model: The language model alias to use
+            router: LLM router for routing the request
+            task_name: Name of the task for logging and tracking
+            response_model: The model class of the response to refine
+
+        Returns:
+            A refined instance of the response_model
+
+        Raises:
+            Honk: If no previous result is found in the message history
+            ValidationError: If the refined result cannot be validated against the response_model
+        """
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
         find_replace_response = await llm_structured(
@@ -252,6 +334,19 @@ class Agent:
     def __apply_find_replace[R: Result](
         self, *, result: R, find_replace_response: FindReplaceResponse, response_model: type[R]
     ) -> R:
+        """Apply find-replace operations to a result.
+
+        Takes a result object and a set of replacements, applies the replacements,
+        and validates the new result against the response model.
+
+        Args:
+            result: The original result to modify
+            find_replace_response: Object containing the replacements to apply
+            response_model: The model class to validate the result against
+
+        Returns:
+            A new instance of the response model with replacements applied
+        """
         dumped_result = result.model_dump_json()
         for replacement in find_replace_response.replacements:
             dumped_result = dumped_result.replace(replacement.find, replacement.replace)
@@ -261,6 +356,21 @@ class Agent:
     def __find_last_result[R: Result](
         self, *, messages: list[LLMUserMessage | LLMAssistantMessage | LLMSystemMessage], response_model: type[R]
     ) -> R:
+        """Find the last result in a conversation history.
+
+        Searches through messages in reverse order to find the most recent
+        assistant message that can be parsed as the given response model.
+
+        Args:
+            messages: List of messages to search through
+            response_model: The model class to validate found results against
+
+        Returns:
+            The last result that can be validated as the response model
+
+        Raises:
+            Honk: If no valid result is found in the message history
+        """
         for message in reversed(messages):
             if isinstance(message, LLMAssistantMessage):
                 try:
