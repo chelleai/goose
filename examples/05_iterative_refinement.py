@@ -33,7 +33,7 @@ class RefineFlowArguments(FlowArguments):
 @task
 async def generate_code_solution(*, agent: Agent, problem: str) -> CodeSolutionResult:
     """Generate a coding solution for a given problem."""
-    print(f"Generating initial solution for problem...")
+    print("Generating initial solution for problem...")
     
     # Create a router for Gemini 2.0 Flash
     router = get_router(models=("gemini-2.0-flash",))
