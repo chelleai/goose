@@ -151,7 +151,7 @@ async def story_generation_flow(*, flow_arguments: StoryFlowArguments, agent: Ag
     )
     
     # Use the outline to generate an opening paragraph
-    opening = await generate_opening(
+    await generate_opening(
         agent=agent,
         outline=outline
     )
