@@ -220,3 +220,18 @@ Goose enables building reliable, maintainable AI applications with proper error 
 - Lack of structured error handling
 
 Start building more robust LLM applications with Goose's typed, stateful approach to agent development.
+
+## Installation and Package Management
+
+Goose uses `uv` for package management. Never use pip with this project.
+
+```bash
+# Install dependencies
+uv add <package-name>
+
+# Update dependencies file
+uv sync
+
+# Run commands
+uv run <command>
+```
