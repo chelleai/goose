@@ -3,14 +3,12 @@ Example demonstrating iterative refinement.
 
 This example shows how to refine a structured result by providing
 feedback and using the refine method to improve it.
-
-NOTE: This is a demo file that illustrates the pattern without making actual LLM calls.
 """
 
 import asyncio
 import os
-from typing import List
 
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field
 
 from goose import Agent, FlowArguments, Result, flow, task
@@ -30,120 +28,34 @@ class RefineFlowArguments(FlowArguments):
     problem_statement: str
 
 
-# Mock implementations for our solutions
-def initial_solution() -> CodeSolutionResult:
-    """Generate an initial solution with brute force approach."""
-    return CodeSolutionResult(
-        problem_understanding="This problem asks us to find two indices in an array such that their corresponding values add up to a target value. We're guaranteed that a solution exists, and we can't use the same element twice.",
-        solution="""def two_sum(nums, target):
-    # Brute force approach: check all possible pairs
-    for i in range(len(nums)):
-        for j in range(i + 1, len(nums)):
-            if nums[i] + nums[j] == target:
-                return [i, j]
-    # If no solution is found (shouldn't happen per problem constraints)
-    return []""",
-        explanation="This solution uses a simple brute force approach. We use nested loops to check every possible pair of numbers in the array. For each pair, we check if they add up to the target. If they do, we return their indices.",
-        time_complexity="O(n²) where n is the length of the input array",
-        space_complexity="O(1) as we only use a constant amount of extra space"
-    )
-
-
-def optimized_solution() -> CodeSolutionResult:
-    """Generate an optimized solution using hash map."""
-    return CodeSolutionResult(
-        problem_understanding="This problem asks us to find two indices in an array such that their corresponding values add up to a target value. We're guaranteed that a solution exists, and we can't use the same element twice.",
-        solution="""def two_sum(nums, target):
-    # Use a hash map to store seen numbers and their indices
-    seen = {}
-    
-    for i, num in enumerate(nums):
-        # Calculate complement (the value we need to find)
-        complement = target - num
-        
-        # If complement is in the hash map, we found our solution
-        if complement in seen:
-            return [seen[complement], i]
-            
-        # Otherwise, add current number and its index to the hash map
-        seen[num] = i
-        
-    # Should not reach here based on problem constraints
-    return []""",
-        explanation="This solution uses a hash map to achieve O(n) time complexity. We iterate through the array once, and for each element, we check if its complement (target - current_number) is in our hash map. If it is, we've found our solution. If not, we add the current number and its index to our hash map and continue.",
-        time_complexity="O(n) where n is the length of the input array",
-        space_complexity="O(n) as we might need to store up to n elements in the hash map"
-    )
-
-
-def solution_with_tests() -> CodeSolutionResult:
-    """Generate the final solution with test cases."""
-    return CodeSolutionResult(
-        problem_understanding="This problem asks us to find two indices in an array such that their corresponding values add up to a target value. We're guaranteed that a solution exists, and we can't use the same element twice.",
-        solution="""def two_sum(nums, target):
-    # Use a hash map to store seen numbers and their indices
-    seen = {}
-    
-    for i, num in enumerate(nums):
-        # Calculate complement (the value we need to find)
-        complement = target - num
-        
-        # If complement is in the hash map, we found our solution
-        if complement in seen:
-            return [seen[complement], i]
-            
-        # Otherwise, add current number and its index to the hash map
-        seen[num] = i
-        
-    # Should not reach here based on problem constraints
-    return []
-
-
-# Test cases
-def run_tests():
-    test_cases = [
-        {"nums": [2, 7, 11, 15], "target": 9, "expected": [0, 1]},
-        {"nums": [3, 2, 4], "target": 6, "expected": [1, 2]},
-        {"nums": [3, 3], "target": 6, "expected": [0, 1]},
-        {"nums": [1, 5, 8, 10, 13], "target": 18, "expected": [2, 4]},
-        {"nums": [-1, -2, -3, -4, -5], "target": -8, "expected": [2, 4]}
-    ]
-    
-    for i, test in enumerate(test_cases):
-        result = two_sum(test["nums"], test["target"])
-        assert result == test["expected"], f"Test {i+1} failed: got {result}, expected {test['expected']}"
-        print(f"Test {i+1} passed!")
-    
-    print("All tests passed!")
-
-
-if __name__ == "__main__":
-    run_tests()""",
-        explanation="This solution uses a hash map to achieve O(n) time complexity. We iterate through the array once, and for each element, we check if its complement (target - current_number) is in our hash map. If it is, we've found our solution. If not, we add the current number and its index to our hash map and continue. I've also added comprehensive test cases that cover various scenarios including positive numbers, negative numbers, and duplicate values.",
-        time_complexity="O(n) where n is the length of the input array",
-        space_complexity="O(n) as we might need to store up to n elements in the hash map"
-    )
 
 
 @task
 async def generate_code_solution(*, agent: Agent, problem: str) -> CodeSolutionResult:
-    """Generate a coding solution for a given problem.
-    
-    In a real implementation, this would call an LLM through the agent.
-    For this example, we use a mock implementation.
-    """
+    """Generate a coding solution for a given problem."""
     print(f"Generating initial solution for problem...")
     
-    # In a real implementation, you would use the agent to call the LLM:
-    # return await agent(
-    #     messages=[...],
-    #     model="your-model",
-    #     task_name="generate_code_solution",
-    #     response_model=CodeSolutionResult
-    # )
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
     
-    # For this example, we use a mock implementation
-    return initial_solution()
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content="You are an expert programmer. Create a solution to the given coding problem with detailed explanation.")]
+    )
+    
+    # User request message
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"Please solve this coding problem:\n\n{problem}\n\nProvide your understanding of the problem, a Python code solution, explanation of how it works, and time/space complexity analysis.")]
+    )
+    
+    # Make the actual LLM call
+    return await agent(
+        messages=[system_message, user_message],
+        model="gemini-2.0-flash",
+        task_name="generate_code_solution",
+        response_model=CodeSolutionResult,
+        router=router
+    )
 
 
 @flow
@@ -186,21 +98,28 @@ async def main():
         print(f"Space Complexity: {initial_solution_result.space_complexity}")
         print("=" * 50)
         
-        # In a real implementation, we would use task.refine:
-        # optimized_solution = await generate_code_solution.refine(
-        #     user_message=LLMUserMessage(...),
-        #     model="your-model",
-        #     router=router
-        # )
-        
-        # For demonstration, we'll use our mock implementations
+        # Create a router for refinements
+        router = get_router(models=("gemini-2.0-flash",))
         
         # First refinement: Optimize time complexity
         print("\n--- First Refinement: Optimizing time complexity ---")
         print("User feedback: \"Please optimize the solution for better time complexity.\"")
         
-        # In the real implementation, this would be the result of the refine method
-        optimized_solution_result = optimized_solution()
+        # Create a user message for the refinement
+        user_message = LLMUserMessage(
+            parts=[LLMMessagePart(content="Please optimize the solution for better time complexity.")]
+        )
+        
+        # Use the task's refine method to improve the solution
+        await generate_code_solution.refine(
+            user_message=user_message,
+            model="gemini-2.0-flash",
+            router=router,
+            index=0  # Use the first instance of the task
+        )
+        
+        # Get the optimized solution
+        optimized_solution_result = run.get_result(task=generate_code_solution)
         
         print("\n--- Optimized Solution ---")
         print("=" * 50)
@@ -215,8 +134,21 @@ async def main():
         print("\n--- Second Refinement: Adding test cases ---")
         print("User feedback: \"Please add test cases to verify the solution works correctly.\"")
         
-        # In the real implementation, this would be the result of the refine method
-        final_solution_result = solution_with_tests()
+        # Create a user message for the second refinement
+        user_message = LLMUserMessage(
+            parts=[LLMMessagePart(content="Please add test cases to verify the solution works correctly.")]
+        )
+        
+        # Use the task's refine method again to add test cases
+        await generate_code_solution.refine(
+            user_message=user_message,
+            model="gemini-2.0-flash",
+            router=router,
+            index=0  # Use the first instance of the task
+        )
+        
+        # Get the final solution with test cases
+        final_solution_result = run.get_result(task=generate_code_solution)
         
         print("\n--- Final Solution With Tests ---")
         print("=" * 50)
