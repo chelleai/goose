@@ -3,16 +3,15 @@ Example demonstrating run persistence.
 
 This example shows how Goose can save and restore flow runs,
 allowing for resuming work or reviewing past executions.
-
-NOTE: This is a demo file that illustrates the pattern without making actual LLM calls.
 """
 
 import asyncio
 import json
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Optional
 
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field
 
 from goose import Agent, FlowArguments, Result, flow, task
@@ -55,7 +54,7 @@ class TaskNote(Result):
     """Structured note with title, content, and tags."""
     title: str = Field(description="Title of the note")
     content: str = Field(description="Content of the note")
-    tags: List[str] = Field(description="Tags associated with the note")
+    tags: list[str] = Field(description="Tags associated with the note")
 
 
 class NoteTakingFlowArguments(FlowArguments):
@@ -64,79 +63,35 @@ class NoteTakingFlowArguments(FlowArguments):
     context: Optional[str] = None
 
 
-# Mock implementation for note generation
-def mock_note_generator(topic: str, context: Optional[str] = None) -> TaskNote:
-    """Generate a mock note based on the topic and context."""
-    # Basic note for Machine Learning
-    if "Machine Learning" in topic and "beginner" in (context or "").lower():
-        return TaskNote(
-            title="Introduction to Machine Learning",
-            content="""Machine Learning is a subset of artificial intelligence that provides systems the ability to automatically learn and improve from experience without being explicitly programmed.
-
-The learning process begins with observations or data, such as examples, direct experience, or instruction, in order to look for patterns in data and make better decisions in the future based on the examples that we provide. The primary aim is to allow the computers learn automatically without human intervention or assistance and adjust actions accordingly.
-
-Key concepts for beginners:
-1. Supervised Learning: Training with labeled data
-2. Unsupervised Learning: Finding patterns in unlabeled data  
-3. Reinforcement Learning: Learning through trial and error
-4. Overfitting: When models perform well on training data but poorly on new data
-5. Feature Engineering: Selecting relevant variables for your model
-
-Popular algorithms include linear regression, decision trees, random forests, and neural networks.""",
-            tags=["machine learning", "AI", "supervised learning", "algorithms", "beginner"]
-        )
-    # Advanced note that builds on the basic one
-    elif "Advanced" in topic and "machine learning" in (context or "").lower():
-        return TaskNote(
-            title="Advanced Machine Learning Concepts",
-            content="""Building on the fundamentals of machine learning, advanced concepts explore more sophisticated algorithms, techniques, and applications.
-
-Deep Learning: Neural networks with multiple layers that can learn hierarchical representations. Frameworks like TensorFlow and PyTorch have made implementation more accessible.
-
-Ensemble Methods: Combining multiple models to improve performance. Examples include bagging (Random Forests), boosting (XGBoost, LightGBM), and stacking.
-
-Transfer Learning: Leveraging pre-trained models and adapting them to new tasks, significantly reducing data requirements and training time.
-
-Generative Models: Models that can generate new content, such as GANs (Generative Adversarial Networks) for image synthesis or transformer-based models like GPT for text generation.
-
-Reinforcement Learning: Advanced techniques like Deep Q-Networks (DQN), Proximal Policy Optimization (PPO), and AlphaGo's Monte Carlo Tree Search.
-
-Explainable AI (XAI): Methods to understand and interpret model decisions, critical for applications in healthcare, finance, and legal domains.
-
-AutoML: Automating the process of model selection, hyperparameter tuning, and feature engineering.
-
-These advanced concepts are driving innovations in computer vision, natural language processing, robotics, and many other fields.""",
-            tags=["deep learning", "transfer learning", "ensemble methods", "generative models", "XAI", "advanced techniques"]
-        )
-    # Generic note for any other topic
-    else:
-        return TaskNote(
-            title=f"Notes on {topic}",
-            content=f"This is a note about {topic}. " + (f"Additional context: {context}" if context else "No additional context provided."),
-            tags=[topic.lower().replace(" ", "-"), "general-notes"]
-        )
 
 
 @task
 async def create_note(*, agent: Agent, topic: str, context: Optional[str] = None) -> TaskNote:
-    """Create a note on the specified topic.
-    
-    In a real implementation, this would call an LLM through the agent.
-    For this example, we use a mock implementation.
-    """
+    """Create a note on the specified topic."""
     print(f"Generating note on topic: {topic}" + (f" with context: {context}" if context else ""))
     
-    # In a real implementation, you would use the agent to call the LLM:
-    # context_str = f"\nContext: {context}" if context else ""
-    # return await agent(
-    #     messages=[...],
-    #     model="your-model",
-    #     task_name="create_note",
-    #     response_model=TaskNote
-    # )
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
     
-    # For this example, we use a mock implementation
-    return mock_note_generator(topic, context)
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content="You are a knowledgeable assistant that creates detailed notes on various topics.")]
+    )
+    
+    # User request message
+    context_str = f"\nContext: {context}" if context else ""
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"Please create a detailed note about {topic}.{context_str}\n\nInclude a clear title, comprehensive content, and relevant tags.")]
+    )
+    
+    # Make the actual LLM call
+    return await agent(
+        messages=[system_message, user_message],
+        model="gemini-2.0-flash",
+        task_name="create_note",
+        response_model=TaskNote,
+        router=router
+    )
 
 
 # Define a flow with custom persistence store
