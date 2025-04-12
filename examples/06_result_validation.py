@@ -7,7 +7,6 @@ custom criteria and handle cases where validation fails.
 
 import asyncio
 import os
-from typing import Optional
 
 from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field, field_validator
