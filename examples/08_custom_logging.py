@@ -195,7 +195,7 @@ async def main():
     # Display logging summary
     if os.path.exists("./logs/llm_interactions.csv"):
         print("\nLOG SUMMARY:")
-        with open("./logs/llm_interactions.csv", 'r') as f:
+        with open("./logs/llm_interactions.csv") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             
