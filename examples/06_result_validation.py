@@ -1,223 +1,164 @@
 """
 Example demonstrating result validation.
 
-This example shows how Goose validates model outputs against expected schemas
-and handles validation errors appropriately.
-
-NOTE: This is a demo file that illustrates the pattern without making actual LLM calls.
+This example shows how to validate LLM-generated results against
+custom criteria and handle cases where validation fails.
 """
 
 import asyncio
 import os
-from typing import List, Optional
+from typing import Optional
 
-from pydantic import BaseModel, Field, ValidationError
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
+from pydantic import Field, field_validator
 
 from goose import Agent, FlowArguments, Result, flow, task
 
 
-class ProductReview(BaseModel):
-    """Product review with rating, comment, pros and cons."""
-    rating: int = Field(description="Rating from 1-5", ge=1, le=5)
-    comment: str = Field(description="Review comment")
-    pros: List[str] = Field(description="List of positive aspects")
-    cons: List[str] = Field(description="List of negative aspects")
+class ProductReview(Result):
+    """A product review with ratings and analysis."""
+    product_name: str = Field(description="Name of the product being reviewed")
+    overall_rating: int = Field(description="Overall rating from 1-5 stars")
+    pros: list[str] = Field(description="Positive aspects of the product")
+    cons: list[str] = Field(description="Negative aspects of the product")
+    summary: str = Field(description="Brief summary of the review")
+    
+    @field_validator("overall_rating")
+    @classmethod
+    def validate_rating(cls, value: int) -> int:
+        """Validate that the rating is between 1 and 5."""
+        if value < 1 or value > 5:
+            raise ValueError("Rating must be between 1 and 5")
+        return value
 
 
 class ProductReviewResult(Result):
-    """Aggregated review analysis for a product."""
-    product_name: str = Field(description="Name of the reviewed product")
-    reviews: List[ProductReview] = Field(description="List of product reviews")
-    average_rating: float = Field(description="Average rating of all reviews")
-    recommendation: str = Field(description="Recommendation based on reviews")
+    """Result of a product review analysis."""
+    review: ProductReview = Field(description="The product review")
+    sentiment_score: float = Field(description="Sentiment score from -1.0 (negative) to 1.0 (positive)")
+    key_insights: list[str] = Field(description="Key insights from the review")
+    
+    @field_validator("sentiment_score")
+    @classmethod
+    def validate_sentiment_score(cls, value: float) -> float:
+        """Validate that the sentiment score is between -1.0 and 1.0."""
+        if value < -1.0 or value > 1.0:
+            raise ValueError("Sentiment score must be between -1.0 and 1.0")
+        return value
 
 
 class ValidationFlowArguments(FlowArguments):
     """Arguments for the review analysis flow."""
-    product_description: str
-
-
-# Mock implementation for review analysis
-def mock_review_analysis(product_info: str) -> ProductReviewResult:
-    """Generate a mock review analysis based on the product info."""
-    if "Smartphone" in product_info:
-        return ProductReviewResult(
-            product_name="Smartphone X1 Pro",
-            reviews=[
-                ProductReview(
-                    rating=5,
-                    comment="Excellent phone with amazing camera quality and battery life!",
-                    pros=["Stunning display", "Excellent camera system", "All-day battery life", "Premium build quality"],
-                    cons=["High price", "No headphone jack"]
-                ),
-                ProductReview(
-                    rating=4,
-                    comment="Great overall phone, but a bit expensive for what it offers.",
-                    pros=["Beautiful screen", "Fast performance", "Good battery"],
-                    cons=["Expensive", "Camera could be better in low light", "Limited storage options"]
-                ),
-                ProductReview(
-                    rating=4,
-                    comment="Solid premium smartphone that competes well with other flagships.",
-                    pros=["Powerful processor", "Elegant design", "Great multitasking"],
-                    cons=["No expandable storage", "Average low-light photography"]
-                )
-            ],
-            average_rating=4.33,
-            recommendation="Highly Recommended for those who value premium features and don't mind the price."
-        )
-    else:
-        return ProductReviewResult(
-            product_name="Generic Product",
-            reviews=[
-                ProductReview(
-                    rating=3,
-                    comment="Average product, nothing special.",
-                    pros=["Works as expected", "Good value"],
-                    cons=["Basic features only", "Average build quality"]
-                )
-            ],
-            average_rating=3.0,
-            recommendation="Recommended for budget-conscious buyers."
-        )
+    product_info: str
 
 
 @task
 async def analyze_reviews(*, agent: Agent, product_info: str) -> ProductReviewResult:
-    """Analyze product reviews and return a structured result.
+    """Analyze product reviews and extract insights."""
+    print(f"Analyzing reviews for: {product_info}")
     
-    In a real implementation, this would call an LLM through the agent.
-    For this example, we use a mock implementation.
-    """
-    print(f"Generating product analysis for product info...")
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
     
-    # In a real implementation, you would use the agent to call the LLM:
-    # return await agent(
-    #     messages=[...],
-    #     model="your-model",
-    #     task_name="analyze_reviews",
-    #     response_model=ProductReviewResult
-    # )
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content="You are a product review analyst. Create a detailed review analysis based on the product information.")]
+    )
     
-    # For this example, we use a mock implementation
-    return mock_review_analysis(product_info)
+    # User request message
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"Please analyze reviews for this product: {product_info}\n\nCreate a detailed review with ratings, pros, cons, and a summary. Then provide a sentiment score between -1.0 and 1.0, and key insights.")]
+    )
+    
+    # Make the actual LLM call with validation
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            return await agent(
+                messages=[system_message, user_message],
+                model="gemini-2.0-flash",
+                task_name="analyze_reviews",
+                response_model=ProductReviewResult,
+                router=router
+            )
+        except ValueError as e:
+            if attempt < max_retries - 1:
+                print(f"Validation failed: {e}. Retrying ({attempt + 1}/{max_retries})...")
+                
+                # Add feedback about the validation error
+                feedback_message = LLMUserMessage(
+                    parts=[LLMMessagePart(content=f"The previous response failed validation: {e}. Please ensure the sentiment score is between -1.0 and 1.0, and the overall rating is between 1 and 5.")]
+                )
+                
+                # Add the feedback to the conversation
+                user_message = feedback_message
+            else:
+                print(f"All {max_retries} attempts failed. Last error: {e}")
+                raise
 
 
 @flow
 async def review_analysis_flow(*, flow_arguments: ValidationFlowArguments, agent: Agent) -> None:
-    """Flow for analyzing product reviews with validation."""
-    await analyze_reviews(agent=agent, product_info=flow_arguments.product_description)
-
-
-# Deliberately trigger validation errors to demonstrate how they're handled
-async def demonstrate_validation() -> None:
-    """Show validation in action with valid and invalid data."""
-    print("\n--- Valid Data Example ---")
-    valid_data = {
-        "product_name": "Smartphone X",
-        "reviews": [
-            {
-                "rating": 5,
-                "comment": "Great product!",
-                "pros": ["Fast", "Good camera"],
-                "cons": ["Expensive"]
-            }
-        ],
-        "average_rating": 4.5,
-        "recommendation": "Recommended"
-    }
-    
-    try:
-        # Parse valid data
-        valid_result = ProductReviewResult.model_validate(valid_data)
-        print("Validation passed successfully.")
-        print(f"Product: {valid_result.product_name}")
-        print(f"First review rating: {valid_result.reviews[0].rating}")
-    except ValidationError as e:
-        print("UNEXPECTED: Valid data failed validation!")
-    
-    print("\n--- Invalid Data Example ---")
-    invalid_data = {
-        "product_name": "Smartphone X",
-        "reviews": [
-            {
-                "rating": 10,  # Invalid: rating should be 1-5
-                "comment": "Great product!",
-                "pros": ["Fast", "Good camera"],
-                "cons": ["Expensive"]
-            }
-        ],
-        "average_rating": 4.5,
-        "recommendation": "Recommended"
-    }
-    
-    try:
-        # Try to parse invalid data (will fail)
-        ProductReviewResult.model_validate(invalid_data)
-        print("UNEXPECTED: Invalid data passed validation!")
-    except ValidationError as e:
-        print("Validation error caught:")
-        for error in e.errors():
-            print(f"- {error['loc']}: {error['msg']}")
-        
-        print("\nThis demonstrates how Goose uses Pydantic's validation to ensure")
-        print("all LLM responses conform to the expected schema.")
+    """Flow that analyzes product reviews with validation."""
+    await analyze_reviews(agent=agent, product_info=flow_arguments.product_info)
 
 
 async def main():
     """Run the review analysis flow and demonstrate validation."""
     # Create a unique run ID
-    run_id = f"reviews-{os.getpid()}"
+    run_id = f"review-analysis-{os.getpid()}"
     
     print("=== Result Validation Example ===")
-    print("This example demonstrates how Goose validates model outputs")
-    print("against expected schemas and handles validation errors.\n")
+    print("This example demonstrates how to validate LLM-generated results")
+    print("against custom criteria and handle cases where validation fails.\n")
     
+    # Sample product to analyze
     product_info = """
-    Smartphone X1 Pro:
-    - 6.7-inch OLED display
-    - 128GB storage
-    - 12GB RAM
-    - Triple camera system (50MP main, 12MP ultrawide, 5MP macro)
-    - 5000mAh battery
-    - Android 14
-    - $999 price point
-    - Available in black, silver, and blue
+    Wireless Noise-Cancelling Headphones XZ-500
+    
+    Features:
+    - Active noise cancellation
+    - 30-hour battery life
+    - Bluetooth 5.0 connectivity
+    - Built-in microphone for calls
+    - Foldable design
+    - Available in black, white, and blue
+    
+    Price: $199.99
+    
+    Recent customer feedback mentions good sound quality but some issues with comfort during extended use.
     """
     
-    # Run the validation flow
+    # Run the review analysis flow
     async with review_analysis_flow.start_run(run_id=run_id) as run:
-        try:
-            # Generate the review analysis
-            await review_analysis_flow.generate(ValidationFlowArguments(product_description=product_info))
-            
-            # Display the validated result
-            review_result = run.get_result(task=analyze_reviews)
-            print("\n--- Validated Result ---")
-            print("=" * 50)
-            print(f"Product: {review_result.product_name}")
-            print(f"Average Rating: {review_result.average_rating:.2f}/5")
-            print(f"Recommendation: {review_result.recommendation}")
-            print("\nReviews:")
-            
-            for i, review in enumerate(review_result.reviews, 1):
-                print(f"\nReview #{i}:")
-                print(f"Rating: {'⭐' * review.rating} ({review.rating}/5)")
-                print(f"Comment: {review.comment}")
-                print("Pros:")
-                for pro in review.pros:
-                    print(f"- {pro}")
-                print("Cons:")
-                for con in review.cons:
-                    print(f"- {con}")
-            
-            # Demonstrate validation error handling
-            print("\n" + "=" * 50)
-            print("DEMONSTRATING VALIDATION:")
-            await demonstrate_validation()
-            
-        except Exception as e:
-            print(f"Error occurred: {e}")
+        await review_analysis_flow.generate(ValidationFlowArguments(product_info=product_info))
+        
+        # Get the analysis result
+        result = run.get_result(task=analyze_reviews)
+        
+        print("\n--- Review Analysis Results ---")
+        print(f"Product: {result.review.product_name}")
+        print(f"Overall Rating: {result.review.overall_rating}/5 stars")
+        
+        print("\nPros:")
+        for pro in result.review.pros:
+            print(f"- {pro}")
+        
+        print("\nCons:")
+        for con in result.review.cons:
+            print(f"- {con}")
+        
+        print(f"\nSummary: {result.review.summary}")
+        
+        print(f"\nSentiment Score: {result.sentiment_score:.2f}")
+        
+        print("\nKey Insights:")
+        for insight in result.key_insights:
+            print(f"- {insight}")
+        
+        print("\nNote: This example demonstrates how Goose can validate LLM-generated")
+        print("results against custom criteria using Pydantic validators, and")
+        print("automatically retry when validation fails.")
 
 
 if __name__ == "__main__":
