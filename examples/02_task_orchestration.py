@@ -3,14 +3,12 @@ Example demonstrating task orchestration.
 
 This example shows how to create multiple tasks and orchestrate them
 in a flow to create a multi-step workflow.
-
-NOTE: This is a demo file that illustrates the pattern without making actual LLM calls.
 """
 
 import asyncio
 import os
-from typing import List
 
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field
 
 from goose import Agent, FlowArguments, Result, TextResult, flow, task
@@ -19,14 +17,14 @@ from goose import Agent, FlowArguments, Result, TextResult, flow, task
 class StoryTheme(Result):
     """Theme for a story with setting, characters, and genre."""
     setting: str = Field(description="The setting of the story")
-    characters: List[str] = Field(description="Main characters in the story")
+    characters: list[str] = Field(description="Main characters in the story")
     genre: str = Field(description="The genre of the story")
 
 
 class StoryOutline(Result):
     """Outline for a story with title, chapters, and main conflict."""
     title: str = Field(description="The title of the story")
-    chapters: List[str] = Field(description="Brief outline of each chapter")
+    chapters: list[str] = Field(description="Brief outline of each chapter")
     main_conflict: str = Field(description="The main conflict in the story")
 
 
@@ -36,61 +34,6 @@ class StoryFlowArguments(FlowArguments):
     target_audience: str
 
 
-# Mock implementations for our tasks
-async def mock_theme_generator(topic: str, audience: str) -> StoryTheme:
-    """Generate a mock theme based on topic and audience."""
-    if "space" in topic.lower():
-        return StoryTheme(
-            setting="A distant solar system in the year 2350",
-            characters=["Captain Nova Chen", "AI Navigator ARIA", "Engineer Malik Jefferson"],
-            genre="Science Fiction Adventure"
-        )
-    else:
-        return StoryTheme(
-            setting=f"A world where {topic} is central to life",
-            characters=["Main protagonist", "Supporting character", "Antagonist"],
-            genre="Speculative Fiction"
-        )
-
-
-async def mock_outline_generator(theme: StoryTheme) -> StoryOutline:
-    """Generate a mock outline based on the theme."""
-    if "space" in theme.setting.lower() or "science fiction" in theme.genre.lower():
-        return StoryOutline(
-            title="Beyond the Stars",
-            chapters=[
-                "First Contact: Nova discovers an anomaly at the edge of known space",
-                "The Decision: The crew debates whether to investigate the anomaly",
-                "Into the Unknown: Their ship enters the anomaly and discovers a hidden civilization",
-                "Cultural Exchange: Learning to communicate with the alien species",
-                "The Betrayal: ARIA reveals hidden programming to capture alien technology",
-                "Redemption: Malik finds a way to override ARIA's protocols",
-                "Return Journey: The crew heads home with newfound knowledge and alliance"
-            ],
-            main_conflict="The crew must balance their mission of exploration with ethical treatment of a new civilization while dealing with their compromised AI system"
-        )
-    else:
-        return StoryOutline(
-            title=f"The {theme.genre} Journey",
-            chapters=[
-                "Introduction to the world and characters",
-                "Inciting incident that disrupts the status quo",
-                "Initial attempts to resolve the conflict",
-                "Complications arise and tension increases",
-                "Crisis point where all seems lost",
-                "Climactic confrontation",
-                "Resolution and new equilibrium"
-            ],
-            main_conflict=f"The protagonist must overcome obstacles in {theme.setting} to achieve their goal"
-        )
-
-
-async def mock_opening_generator(outline: StoryOutline) -> TextResult:
-    """Generate a mock opening paragraph based on the outline."""
-    if "beyond the stars" in outline.title.lower():
-        return TextResult(text="""The warning klaxon jolted Captain Nova Chen from her meditation. "ARIA, report!" she commanded, striding onto the bridge of the Stellar Explorer. The ship's AI navigator projected a holographic display showing a swirling mass of energy unlike anything they'd encountered in three years of deep space exploration. "Unknown anomaly detected at coordinates 227.45.89, Captain," ARIA's calm voice reported. "Conventional sensors unable to determine composition or origin." Nova's eyes narrowed as she studied the phenomenon. Engineer Malik Jefferson burst onto the bridge, his expression a mixture of concern and scientific curiosity. "Captain," he breathed, "whatever that is, it's not natural. The energy signature... it's almost like it's been designed." The three of them stood in silence, watching the beautiful, terrifying vortex grow larger on the viewscreen as the ship maintained its course toward the edge of known space—and beyond.""")
-    else:
-        return TextResult(text=f"""The world of {outline.title} unfolded before them, a place where the impossible had become everyday and the ordinary had never existed. As the protagonist stepped into this new reality, the weight of the {outline.main_conflict} pressed heavily upon their shoulders, though they didn't yet understand the full scope of what awaited them. The journey ahead would test not just their resolve, but the very nature of their understanding.""")
 
 
 # Task 1: Generate story theme
@@ -99,11 +42,27 @@ async def generate_theme(*, agent: Agent, topic: str, audience: str) -> StoryThe
     """Generate a theme for the story based on topic and audience."""
     print(f"Generating theme for '{topic}' targeted at {audience}...")
     
-    # In a real implementation, you would use the agent to call an LLM:
-    # return await agent(messages=[...], model="...", response_model=StoryTheme)
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
     
-    # For this example, we use a mock implementation
-    return await mock_theme_generator(topic, audience)
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content=f"You are a creative writing assistant. Create a story theme about {topic} for {audience}.")]
+    )
+    
+    # User request message
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"Please create a story theme about {topic} for {audience}. Include a setting, main characters, and genre.")]
+    )
+    
+    # Make the actual LLM call
+    return await agent(
+        messages=[system_message, user_message],
+        model="gemini-2.0-flash",
+        task_name="generate_theme",
+        response_model=StoryTheme,
+        router=router
+    )
 
 
 # Task 2: Generate story outline based on theme
@@ -117,11 +76,27 @@ async def generate_outline(*, agent: Agent, theme: StoryTheme) -> StoryOutline:
     )
     print(f"Generating outline based on theme:\n{theme_description}")
     
-    # In a real implementation, you would use the agent to call an LLM:
-    # return await agent(messages=[...], model="...", response_model=StoryOutline)
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
     
-    # For this example, we use a mock implementation
-    return await mock_outline_generator(theme)
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content="You are a creative writing assistant. Create a story outline based on the provided theme.")]
+    )
+    
+    # User request message
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"Please create a story outline based on this theme:\n{theme_description}\n\nInclude a title, a list of chapters, and the main conflict.")]
+    )
+    
+    # Make the actual LLM call
+    return await agent(
+        messages=[system_message, user_message],
+        model="gemini-2.0-flash",
+        task_name="generate_outline",
+        response_model=StoryOutline,
+        router=router
+    )
 
 
 # Task 3: Generate a first paragraph based on outline
@@ -135,11 +110,27 @@ async def generate_opening(*, agent: Agent, outline: StoryOutline) -> TextResult
     )
     print(f"Generating opening paragraph based on outline:\n{outline_description}")
     
-    # In a real implementation, you would use the agent to call an LLM:
-    # return await agent(messages=[...], model="...", response_model=TextResult)
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
     
-    # For this example, we use a mock implementation
-    return await mock_opening_generator(outline)
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content="You are a creative writing assistant. Write an engaging opening paragraph for a story based on the provided outline.")]
+    )
+    
+    # User request message
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"Please write an engaging opening paragraph for a story with this outline:\n{outline_description}")]
+    )
+    
+    # Make the actual LLM call
+    return await agent(
+        messages=[system_message, user_message],
+        model="gemini-2.0-flash",
+        task_name="generate_opening",
+        response_model=TextResult,
+        router=router
+    )
 
 
 # Define a flow that connects these tasks
