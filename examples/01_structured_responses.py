@@ -7,9 +7,7 @@ with a flow to ensure the LLM output conforms to expected schema.
 
 import asyncio
 import os
-from typing import List
-
-from aikernel import LLMMessagePart, LLMRouter, LLMSystemMessage, LLMUserMessage, get_router
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field
 
 from goose import Agent, FlowArguments, Result, flow, task
@@ -19,8 +17,8 @@ from goose import Agent, FlowArguments, Result, flow, task
 class RecipeResult(Result):
     """Recipe with structured attributes."""
     title: str = Field(description="The title of the recipe")
-    ingredients: List[str] = Field(description="List of ingredients needed")
-    steps: List[str] = Field(description="Step-by-step cooking instructions")
+    ingredients: list[str] = Field(description="List of ingredients needed")
+    steps: list[str] = Field(description="Step-by-step cooking instructions")
     prep_time_minutes: int = Field(description="Preparation time in minutes")
     cooking_time_minutes: int = Field(description="Cooking time in minutes")
 
