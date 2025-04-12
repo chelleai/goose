@@ -9,7 +9,6 @@ import asyncio
 import os
 
 from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
-from pydantic import Field
 
 from goose import Agent, FlowArguments, TextResult, flow, task
 
