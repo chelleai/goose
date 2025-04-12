@@ -9,7 +9,7 @@ import asyncio
 import os
 from typing import List
 
-from aikernel import LLMMessagePart, LLMRouter, LLMSystemMessage, LLMUserMessage
+from aikernel import LLMMessagePart, LLMRouter, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field
 
 from goose import Agent, FlowArguments, Result, flow, task
@@ -36,12 +36,7 @@ async def generate_recipe(*, agent: Agent, ingredient: str) -> RecipeResult:
     print(f"Generating recipe for {ingredient}...")
     
     # Create a router for Gemini 2.0 Flash
-    router = LLMRouter(
-        model_list=[
-            {"model_name": "gemini-2.0-flash", "litellm_params": {"model": "vertex_ai/gemini-2.0-flash"}}
-        ],
-        fallbacks=[],
-    )
+    router = get_router(models=("gemini-2.0-flash",))
     
     # System message with instructions
     system_message = LLMSystemMessage(

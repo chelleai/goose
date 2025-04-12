@@ -98,11 +98,11 @@ class Agent:
         typed_messages: list[ExpectedMessage] = [*messages]
 
         if response_model is TextResult:
-            response = await llm_unstructured(model=model, messages=typed_messages, router=router)
+            response = await llm_unstructured(messages=typed_messages, router=router)
             parsed_response = response_model.model_validate({"text": response.text})
         else:
             response = await llm_structured(
-                model=model, messages=typed_messages, response_model=response_model, router=router
+                messages=typed_messages, response_model=response_model, router=router
             )
             parsed_response = response.structured_response
 
@@ -160,7 +160,7 @@ class Agent:
         """
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
-        response = await llm_unstructured(model=model, messages=typed_messages, router=router)
+        response = await llm_unstructured(messages=typed_messages, router=router)
         end_time = datetime.now()
 
         if isinstance(messages[0], LLMSystemMessage):
