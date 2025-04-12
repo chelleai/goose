@@ -38,13 +38,13 @@ class FileFlowRunStore(IFlowRunStore):
             json.dump(run, f, indent=2)
         print(f"Run saved to {file_path}")
     
-    async def get(self, *, run_id: str) -> Optional[SerializedFlowRun]:
+    async def get(self, *, run_id: str) -> SerializedFlowRun | None:
         """Load a flow run from disk."""
         file_path = self._get_file_path(run_id)
         if not os.path.exists(file_path):
             return None
         
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             run_data = json.load(f)
         print(f"Run loaded from {file_path}")
         return run_data
@@ -60,13 +60,13 @@ class TaskNote(Result):
 class NoteTakingFlowArguments(FlowArguments):
     """Arguments for the note-taking flow."""
     topic: str
-    context: Optional[str] = None
+    context: str | None = None
 
 
 
 
 @task
-async def create_note(*, agent: Agent, topic: str, context: Optional[str] = None) -> TaskNote:
+async def create_note(*, agent: Agent, topic: str, context: str | None = None) -> TaskNote:
     """Create a note on the specified topic."""
     print(f"Generating note on topic: {topic}" + (f" with context: {context}" if context else ""))
     
