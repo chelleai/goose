@@ -223,7 +223,7 @@ class Agent:
         start_time = datetime.now()
         typed_messages: list[ExpectedMessage] = [*messages]
         find_replace_response = await llm_structured(
-            model=model, messages=typed_messages, response_model=FindReplaceResponse, router=router
+            messages=typed_messages, response_model=FindReplaceResponse, router=router
         )
         parsed_find_replace_response = find_replace_response.structured_response
         end_time = datetime.now()
