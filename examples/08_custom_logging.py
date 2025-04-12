@@ -10,9 +10,9 @@ import csv
 import os
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from aikernel import LLMModelAlias, LLMRouter, LLMSystemMessage, LLMUserMessage
+from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field
 
 from goose import Agent, AgentResponse, FlowArguments, Result, TextResult, flow, task
@@ -68,7 +68,7 @@ class CustomCSVLogger(IAgentLogger):
 
 class QuizQuestion(Result):
     question: str = Field(description="The quiz question")
-    options: List[str] = Field(description="Multiple choice options")
+    options: list[str] = Field(description="Multiple choice options")
     correct_option: int = Field(description="Index of the correct option (0-based)")
     explanation: str = Field(description="Explanation of the correct answer")
 
@@ -85,16 +85,21 @@ logger = CustomCSVLogger(log_file="./logs/llm_interactions.csv")
 @task
 async def generate_quiz_question(*, agent: Agent, topic: str, difficulty: str) -> QuizQuestion:
     """Generate a quiz question on a specific topic."""
-    router = LLMRouter[LLMModelAlias](
-        model_list=[{"model_name": "gemini-2.0-flash", "litellm_params": {"model": "gemini/gemini-2.0-flash"}}],
-        fallbacks=[],
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
+    
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content="You are a helpful quiz creator.")]
+    )
+    
+    # User request message
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"Create a {difficulty} difficulty quiz question about {topic}. Include a question, 4 multiple choice options, the index of the correct option (0-based), and an explanation.")]
     )
     
     return await agent(
-        messages=[
-            LLMSystemMessage(content="You are a helpful quiz creator."),
-            LLMUserMessage(content=f"Create a {difficulty} difficulty quiz question about {topic}.")
-        ],
+        messages=[system_message, user_message],
         model="gemini-2.0-flash",
         task_name="generate_quiz_question",
         response_model=QuizQuestion,
@@ -105,21 +110,26 @@ async def generate_quiz_question(*, agent: Agent, topic: str, difficulty: str) -
 @task
 async def generate_hint(*, agent: Agent, question: QuizQuestion) -> TextResult:
     """Generate a hint for a quiz question."""
-    router = LLMRouter[LLMModelAlias](
-        model_list=[{"model_name": "gemini-2.0-flash", "litellm_params": {"model": "gemini/gemini-2.0-flash"}}],
-        fallbacks=[],
+    # Create a router for Gemini 2.0 Flash
+    router = get_router(models=("gemini-2.0-flash",))
+    
+    # System message with instructions
+    system_message = LLMSystemMessage(
+        parts=[LLMMessagePart(content="You are a helpful tutor providing hints.")]
+    )
+    
+    # User request message
+    user_message = LLMUserMessage(
+        parts=[LLMMessagePart(content=f"""
+            Provide a subtle hint for this question without giving away the answer:
+            
+            Question: {question.question}
+            Options: {', '.join([f"{i+1}. {option}" for i, option in enumerate(question.options)])}
+        """)]
     )
     
     return await agent(
-        messages=[
-            LLMSystemMessage(content="You are a helpful tutor providing hints."),
-            LLMUserMessage(content=f"""
-                Provide a subtle hint for this question without giving away the answer:
-                
-                Question: {question.question}
-                Options: {question.options}
-            """)
-        ],
+        messages=[system_message, user_message],
         model="gemini-2.0-flash",
         task_name="generate_hint",
         response_model=TextResult,
