@@ -9,7 +9,6 @@ import asyncio
 import json
 import os
 import time
-from typing import Optional
 
 from aikernel import LLMMessagePart, LLMSystemMessage, LLMUserMessage, get_router
 from pydantic import Field
