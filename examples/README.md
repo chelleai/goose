@@ -36,7 +36,18 @@ Each example is a standalone Python file that can be run directly:
 python examples/01_structured_responses.py
 ```
 
-Note that these examples require the following dependencies:
+### Note About Example Implementation
+
+These examples use mock implementations to demonstrate Goose's patterns without requiring API keys or making actual LLM calls. In real implementations, you would:
+
+1. Configure your LLM API credentials
+2. Replace the mock implementations with actual LLM calls
+3. Adapt prompts and models as needed
+
+The code structure, flow orchestration, and type handling shown in these examples accurately reflect how you would use Goose with real LLM integrations.
+
+## Dependencies
+
 - Python 3.12+
 - Goose framework
 - aikernel
