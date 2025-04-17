@@ -1,2 +1,2 @@
-class Honk(Exception):
+class GooseError(Exception):
     pass

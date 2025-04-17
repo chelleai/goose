@@ -2,13 +2,14 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any, overload
 
-from aikernel import LLMModelAlias, LLMRouter, LLMSystemMessage, LLMUserMessage
 from pydantic import BaseModel
 
+from aikernel import LLMSystemMessage, LLMUserMessage
 from goose._internal.agent import Agent
 from goose._internal.result import Result
 from goose._internal.state import FlowRun, NodeState, get_current_flow_run
-from goose.errors import Honk
+from goose._internal.types.router import AnyLLMRouter
+from goose.errors import GooseError
 
 
 class Task[**P, R: Result]:
@@ -26,7 +27,7 @@ class Task[**P, R: Result]:
     def result_type(self) -> type[R]:
         result_type = self._generator.__annotations__.get("return")
         if result_type is None:
-            raise Honk(f"Task {self.name} has no return type annotation")
+            raise GooseError(f"Task {self.name} has no return type annotation")
         return result_type
 
     @property
@@ -42,12 +43,11 @@ class Task[**P, R: Result]:
         else:
             return self.result_type.model_validate_json(state.raw_result)
 
-    async def ask[M: LLMModelAlias](
+    async def ask(
         self,
         *,
         user_message: LLMUserMessage,
-        router: LLMRouter[M],
-        model: M,
+        router: AnyLLMRouter,
         context: LLMSystemMessage | None = None,
         index: int = 0,
     ) -> str:
@@ -55,7 +55,7 @@ class Task[**P, R: Result]:
         node_state = flow_run.get_state(task=self, index=index)
 
         if len(node_state.conversation.assistant_messages) == 0:
-            raise Honk("Cannot ask about a task that has not been initially generated")
+            raise GooseError("Cannot ask about a task that has not been initially generated")
 
         if context is not None:
             node_state.set_context(context=context)
@@ -63,8 +63,6 @@ class Task[**P, R: Result]:
 
         answer = await flow_run.agent(
             messages=node_state.conversation.render(),
-            model=model,
-            task_name=f"ask--{self.name}",
             mode="ask",
             router=router,
         )
@@ -73,12 +71,11 @@ class Task[**P, R: Result]:
 
         return answer
 
-    async def refine[M: LLMModelAlias](
+    async def refine(
         self,
         *,
         user_message: LLMUserMessage,
-        router: LLMRouter[M],
-        model: M,
+        router: AnyLLMRouter,
         context: LLMSystemMessage | None = None,
         index: int = 0,
     ) -> R:
@@ -86,7 +83,7 @@ class Task[**P, R: Result]:
         node_state = flow_run.get_state(task=self, index=index)
 
         if len(node_state.conversation.assistant_messages) == 0:
-            raise Honk("Cannot refine a task that has not been initially generated")
+            raise GooseError("Cannot refine a task that has not been initially generated")
 
         if context is not None:
             node_state.set_context(context=context)
@@ -94,8 +91,6 @@ class Task[**P, R: Result]:
 
         result = await flow_run.agent(
             messages=node_state.conversation.render(),
-            model=model,
-            task_name=f"refine--{self.name}",
             response_model=self.result_type,
             mode="refine",
             router=router,
@@ -124,7 +119,7 @@ class Task[**P, R: Result]:
         flow_run.upsert_node_state(node_state)
         return result
 
-    def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> int:
+    def __hash_task_call(self, *args: P.args, **kwargs: P.kwargs) -> str:
         def update_hash(argument: Any, current_hash: Any = hashlib.sha256()) -> None:
             try:
                 if isinstance(argument, list | tuple | set):
@@ -143,18 +138,18 @@ class Task[**P, R: Result]:
                 else:
                     current_hash.update(str(argument).encode())
             except TypeError:
-                raise Honk(f"Unhashable argument to task {self.name}: {argument}")
+                raise GooseError(f"Unhashable argument to task {self.name}: {argument}")
 
         result = hashlib.sha256()
         update_hash(args, result)
         update_hash(kwargs, result)
 
-        return int(result.hexdigest(), 16)
+        return str(int(result.hexdigest(), 16))
 
     def __get_current_flow_run(self) -> FlowRun[Any]:
         run = get_current_flow_run()
         if run is None:
-            raise Honk("No current flow run")
+            raise GooseError("No current flow run")
         return run
 
 

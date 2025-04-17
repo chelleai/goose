@@ -3,12 +3,12 @@ from contextlib import asynccontextmanager
 from types import CodeType
 from typing import Protocol, overload
 
-from ..errors import Honk
-from .agent import Agent, IAgentLogger
-from .conversation import Conversation
-from .result import Result
-from .state import FlowArguments, FlowRun, get_current_flow_run, set_current_flow_run
-from .store import IFlowRunStore, InMemoryFlowRunStore
+from goose._internal.agent import Agent
+from goose._internal.conversation import Conversation
+from goose._internal.result import Result
+from goose._internal.state import FlowArguments, FlowRun, get_current_flow_run, set_current_flow_run
+from goose._internal.store import IFlowRunStore, InMemoryFlowRunStore
+from goose.errors import GooseError
 
 
 class IGenerator[FlowArgumentsT: FlowArguments](Protocol):
@@ -31,18 +31,18 @@ class Flow[FlowArgumentsT: FlowArguments]:
         *,
         name: str | None = None,
         store: IFlowRunStore | None = None,
-        agent_logger: IAgentLogger | None = None,
     ) -> None:
         self._fn = fn
         self._name = name
-        self._agent_logger = agent_logger
         self._store = store or InMemoryFlowRunStore(flow_name=self.name)
 
     @property
     def flow_arguments_model(self) -> type[FlowArgumentsT]:
         arguments_model = self._fn.__annotations__.get("flow_arguments")
         if arguments_model is None:
-            raise Honk("Flow function has an invalid signature. Must accept `flow_arguments` and `agent` as arguments.")
+            raise GooseError(
+                "Flow function has an invalid signature. Must accept `flow_arguments` and `agent` as arguments."
+            )
 
         return arguments_model
 
@@ -54,7 +54,7 @@ class Flow[FlowArgumentsT: FlowArguments]:
     def current_run(self) -> FlowRun[FlowArgumentsT]:
         run = get_current_flow_run()
         if run is None:
-            raise Honk("No current flow run")
+            raise GooseError("No current flow run")
         return run
 
     @asynccontextmanager
@@ -70,7 +70,7 @@ class Flow[FlowArgumentsT: FlowArguments]:
         old_run = get_current_flow_run()
         set_current_flow_run(run)
 
-        run.start(flow_name=self.name, run_id=run_id, agent_logger=self._agent_logger)
+        run.start(flow_name=self.name, run_id=run_id)
         yield run
         await self._store.save(run_id=run_id, run=run.dump())
         run.end()
@@ -80,7 +80,7 @@ class Flow[FlowArgumentsT: FlowArguments]:
     async def generate(self, flow_arguments: FlowArgumentsT, /) -> None:
         flow_run = get_current_flow_run()
         if flow_run is None:
-            raise Honk("No current flow run")
+            raise GooseError("No current flow run")
 
         flow_run.set_flow_arguments(flow_arguments)
         await self._fn(flow_arguments=flow_arguments, agent=flow_run.agent)
@@ -88,9 +88,12 @@ class Flow[FlowArgumentsT: FlowArguments]:
     async def regenerate(self) -> None:
         flow_run = get_current_flow_run()
         if flow_run is None:
-            raise Honk("No current flow run")
+            raise GooseError("No current flow run")
 
         await self._fn(flow_arguments=flow_run.flow_arguments, agent=flow_run.agent)
+
+    async def delete(self, *, run_id: str) -> None:
+        await self._store.delete(run_id=run_id)
 
 
 @overload
@@ -100,7 +103,6 @@ def flow[FlowArgumentsT: FlowArguments](
     *,
     name: str | None = None,
     store: IFlowRunStore | None = None,
-    agent_logger: IAgentLogger | None = None,
 ) -> Callable[[IGenerator[FlowArgumentsT]], Flow[FlowArgumentsT]]: ...
 def flow[FlowArgumentsT: FlowArguments](
     fn: IGenerator[FlowArgumentsT] | None = None,
@@ -108,13 +110,12 @@ def flow[FlowArgumentsT: FlowArguments](
     *,
     name: str | None = None,
     store: IFlowRunStore | None = None,
-    agent_logger: IAgentLogger | None = None,
 ) -> Flow[FlowArgumentsT] | Callable[[IGenerator[FlowArgumentsT]], Flow[FlowArgumentsT]]:
     if fn is None:
 
         def decorator(fn: IGenerator[FlowArgumentsT]) -> Flow[FlowArgumentsT]:
-            return Flow(fn, name=name, store=store, agent_logger=agent_logger)
+            return Flow(fn, name=name, store=store)
 
         return decorator
 
-    return Flow(fn, name=name, store=store, agent_logger=agent_logger)
+    return Flow(fn, name=name, store=store)

@@ -1,9 +1,9 @@
 from typing import Self
 
-from aikernel import LLMAssistantMessage, LLMSystemMessage, LLMUserMessage
 from pydantic import BaseModel
 
-from goose.errors import Honk
+from aikernel import LLMAssistantMessage, LLMSystemMessage, LLMUserMessage
+from goose.errors import GooseError
 
 
 class Conversation(BaseModel):
@@ -33,10 +33,10 @@ class Conversation(BaseModel):
 
     def undo(self) -> Self:
         if len(self.user_messages) == 0:
-            raise Honk("Cannot undo, no user messages")
+            raise GooseError("Cannot undo, no user messages")
 
         if len(self.assistant_messages) == 0:
-            raise Honk("Cannot undo, no assistant messages")
+            raise GooseError("Cannot undo, no assistant messages")
 
         self.user_messages.pop()
         self.assistant_messages.pop()
